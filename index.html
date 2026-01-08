@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dungeon of the Crimson Eye</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes flicker {
+          0% { opacity: 0.98; }
+          50% { opacity: 1.0; }
+          100% { opacity: 0.99; }
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #020402;
+            font-family: 'Courier New', Courier, monospace;
+            animation: flicker 0.2s infinite;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        canvas {
+            image-rendering: pixelated;
+        }
+
+        .pixelated {
+            image-rendering: pixelated;
+        }
+
+        /* Retro text glow */
+        .retro-text {
+            color: #33ff33;
+            text-shadow: 0 0 8px rgba(51, 255, 51, 0.8), 0 0 2px #fff;
+        }
+        
+        .retro-border {
+            border: 2px solid #33ff33;
+            box-shadow: inset 0 0 5px #33ff33, 0 0 10px rgba(51,255,51,0.3);
+        }
+        
+        .retro-button {
+            background: #000;
+            color: #33ff33;
+            border: 1px solid #33ff33;
+            transition: all 0.1s;
+            text-transform: uppercase;
+            font-weight: 900;
+            letter-spacing: 1px;
+        }
+        
+        .retro-button:hover {
+            background: #33ff33;
+            color: #000;
+            box-shadow: 0 0 15px rgba(51, 255, 51, 0.4);
+        }
+        
+        .retro-button:active {
+            transform: scale(0.97);
+        }
+
+        /* Scanline effect */
+        .scanlines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.02), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.02));
+            background-size: 100% 4px, 4px 100%;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        .crt-curve {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, transparent 65%, rgba(0,0,0,0.5) 100%);
+            pointer-events: none;
+            z-index: 1001;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: #001100;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #33ff33;
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0"
+  }
+}
+</script>
+</head>
+<body>
+    <div id="root" class="w-full h-full flex items-center justify-center"></div>
+    <div class="scanlines"></div>
+    <div class="crt-curve"></div>
+</body>
+</html>
