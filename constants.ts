@@ -12,9 +12,11 @@ export const MERCHANT_AVATAR = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cD
 export const AVATAR_TRAVELER = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgc2hhcGUtcmVuZGVyaW5nPSJjcmlzcEVkZ2VzIj48IS0tIENsb2FrIC0tPjxyZWN0IHg9IjE2IiB5PSI4IiB3aWR0aD0iMzIiIGhlaWdodD0iNDgiIGZpbGw9IiM1YzQwMzMiLz48cmVjdCB4PSIyMCIgeT0iNCIgd2lkdGg9IjI0IiBoZWlnaHQ9IjUyIiBmaWxsPSIjNWM0MDMzIi8+PCEtLSBEYXJrIEludGVyaW9yIC0tPjxyZWN0IHg9IjI0IiB5PSIxNiIgd2lkdGg9IjE2IiBoZWlnaHQ9IjE2IiBmaWxsPSIjMmUyZTMzIi8+PCEtLSBFeWVzIChIaWRkZW4gaW4gc2hhZG93KSAtLT48cmVjdCB4PSIyNiIgeT0iMjAiIHdpZHRoPSI0IiBoZWlnaHQ9IjIiIGZpbGw9IiNhYWZmYWEiIG9wYWNpdHk9IjAuNiIvPjxyZWN0IHg9IjM0IiB5PSIyMCIgd2lkdGg9IjQiIGhlaWdodD0iMiIgZmlsbD0iI2FhZmZhYSIgb3BhY2l0eT0iMC42Ii8+PCEtLSBTY2FyZiAtLT48cmVjdCB4PSIyMiIgeT0iMzIiIHdpZHRoPSIyMCIgaGVpZ2h0PSI4IiBmaWxsPSIjOGI0NTEzIi8+PCEtLSBCcm9vY2ggLS0+PHJlY3QgeD0iMzAiIHk9IjM0IiB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZkNTAwIi8+PC9zdmc+";
 
 // ENEMY AVATARS
-export const AVATAR_BAT = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgc2hhcGUtcmVuZGVyaW5nPSJjcmlzcEVkZ2VzIj48IS0tIFdpbmdzIC0tPjxyZWN0IHg9IjQiIHk9IjIwIiB3aWR0aD0iNTYiIGhlaWdodD0iMiIgZmlsbD0iIzRhMTA1NCIvPjxyZWN0IHg9IjQiIHk9IjIyIiB3aWR0aD0iNTYiIGhlaWdodD0iNCIgZmlsbD0iIzJkMDgwMCIgLz48cmVjdCB4PSI4IiB5PSIyNiIgd2lkdGg9IjQ4IiBoZWlnaHQ9IjYiIGZpbGw9IiMyZDA4MDAiIG9wYWNpdHk9IjAuOCIvPjxyZWN0IHg9IjEyIiB5PSIzMiIgd2lkdGg9IjQwIiBoZWlnaHQ9IjYiIGZpbGw9IiMyZDA4MDAiIG9wYWNpdHk9IjAuNiIvPjwhLS0gQm9keSAtLT48cmVjdCB4PSIyNCIgeT0iMjQiIHdpZHRoPSIxMiIgaGVpZ2h0PSIxOCIgZmlsbD0iIzEwMTAxMCIvPjwhLS0gRWFycyAtLT48cmVjdCB4PSIyNiIgeT0iMTgiIHdpZHRoPSI0IiBoZWlnaHQ9IjYiIGZpbGw9IiMxMDEwMTAiLz48cmVjdCB4PSIzNCIgeT0iMTgiIHdpZHRoPSI0IiBoZWlnaHQ9IjYiIGZpbGw9IiMxMDEwMTAiLz48IS0tIEV5ZXMgLS0+PHJlY3QgeD0iMjciIHk9IjI4IiB3aWR0aD0iMyIgaGVpZ2h0PSIzIiBmaWxsPSIjZmYwMDAwIi8+PHJlY3QgeD0iMzQiIHk9IjI4IiB3aWR0aD0iMyIgaGVpZ2h0PSIzIiBmaWxsPSIjZmYwMDAwIi8+PjwhLS0gQ3liZXIgLS0+PHJlY3QgeD0iMzAiIHk9IjMyIiB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjMDBmZmZmIiBvcGFjaXR5PSIwLjgiLz48cmVjdCB4PSI0IiB5PSIyMCIgd2lkdGg9IjIiIGhlaWdodD0iMTIiIGZpbGw9IiM4ODAwODgiLz48cmVjdCB4PSI1OCIgeT0iMjAiIHdpZHRoPSIyIiBoZWlnaHQ9IjEyIiBmaWxsPSIjODgwMDg4Ii8+PC9zdmc+";
+export const AVATAR_BAT = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgc2hhcGUtcmVuZGVyaW5nPSJjcmlzcEVkZ2VzIj48IS0tIFdpbmdzIC0tPjxyZWN0IHg9IjQiIHk9IjIwIiB3aWR0aD0iNTYiIGhlaWdodD0iMiIgZmlsbD0iIzRhMTA1NCIvPjxyZWN0IHg9IjQiIHk9IjIyIiB3aWR0aD0iNTYiIGhlaWdodD0iNCIgZmlsbD0iIzJkMDgwMCIgLz48cmVjdCB4PSI4IiB5PSIyNiIgd2lkdGg9IjQ4IiBoZWlnaHQ9IjYiIGZpbGw9IiMyZDA4MDAiIG9wYWNpdHk9IjAuOCIvPjxyZWN0IHg9IjEyIiB5PSIzMiIgd2lkdGg9IjQwIiBoZWlnaHQ9IjYiIGZpbGw9IiMyZDA4MDAiIG9wYWNpdHk9IjAuNiIvPjwhLS0gQm9keSAtLT48cmVjdCB4PSIyNCIgeT0iMjQiIHdpZHRoPSIxMiIgaGVpZ2h0PSIxOCIgZmlsbD0iIzEwMTAxMCIvPjwhLS0gRWFycyAtLT48cmVjdCB4PSIyNiIgeT0iMTgiIHdpZHRoPSI0IiBoZWlnaHQ9IjYiIGZpbGw9IiMxMDEwMTAiLz48cmVjdCB4PSIzNCIgeT0iMTgiIHdpZHRoPSI0IiBoZWlnaHQ9IjYiIGZpbGw9IiMxMDEwMTAiLz48IS0tIEV5ZXMgLS0+PHJlY3QgeD0iMjciIHk9IjI4IiB3aWR0aD0iMyIgaGVpZ2h0PSIzIiBmaWxsPSIjZmYwMDAwIi8+PHJlY3QgeD0iMzQiIHk9IjI4IiB3aWR0aD0iMyIgaGVpZ2h0PSIzIiBmaWxsPSIjZmYwMDAwIi8+PCEtLSBDeWJlciAtLT48cmVjdCB4PSIzMCIgeT0iMzIiIHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiMwMGZmZmYiIG9wYWNpdHk9IjAuOCIvPjxyZWN0IHg9IjQiIHk9IjIwIiB3aWR0aD0iMiIgaGVpZ2h0PSIxMiIgZmlsbD0iIzg4MDA4OCIvPjxyZWN0IHg9IjU4IiB5PSIyMCIgd2lkdGg9IjIiIGhlaWdodD0iMTIiIGZpbGw9IiM4ODAwODgiLz48L3N2Zz4=";
 
 export const AVATAR_SLIME = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgc2hhcGUtcmVuZGVyaW5nPSJjcmlzcEVkZ2VzIj48IS0tIE1haW4gQmxvYiAtLT48cmVjdCB4PSIxNiIgeT0iMjgiIHdpZHRoPSIzMiIgaGVpZ2h0PSIyOCIgZmlsbD0iIzAwZmYwMCIgb3BhY2l0eT0iMC42Ii8+PHJlY3QgeD0iMjAiIHk9IjIwIiB3aWR0aD0iMjQiIGhlaWdodD0iOCIgZmlsbD0iIzAwZmYwMCIgb3BhY2l0eT0iMC42Ii8+PCEtLSBDb3JlIC0tPjxyZWN0IHg9IjI0IiB5PSIzMiIgd2lkdGg9IjE2IiBoZWlnaHQ9IjE2IiBmaWxsPSIjMDA2NjAwIi8+PCEtLSBXZXQgU3BvdHMgLS0+PHJlY3QgeD0iMjIiIHk9IjI0IiB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmZmZmIiBvcGFjaXR5PSIwLjUiLz48cmVjdCB4PSIzOCIgeT0iMzYiIHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiNmZmZmZmYiIG9wYWNpdHk9IjAuNSIvPjwhLS0gR2xpdGNoIENpcmN1aXRzIC0tPjxyZWN0IHg9IjI2IiB5PSIzNiIgd2lkdGg9IjgiIGhlaWdodD0iMiIgZmlsbD0iIzAwZmZmZiIvPjxyZWN0IHg9IjI2IiB5PSI0MCIgd2lkdGg9IjEiIGhlaWdodD0iNCIgZmlsbD0iIzAwZmZmZiIvPjxyZWN0IHg9IjMyIiB5PSI0MCIgd2lkdGg9IjEiIGhlaWdodD0iNCIgZmlsbD0iIzAwZmZmZiIvPjxyZWN0IHg9IjE4IiB5PSI0OCIgd2lkdGg9IjQiIGhlaWdodD0iNCIgZmlsbD0iIzMzZmYzMyIvPjxyZWN0IHg9IjQyIiB5PSI0OCIgd2lkdGg9IjQiIGhlaWdodD0iNCIgZmlsbD0iIzMzZmYzMyIvPjwvc3ZnPg==";
+
+export const AVATAR_SKELETON = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgc2hhcGUtcmVuZGVyaW5nPSJjcmlzcEVkZ2VzIj48IS0tIFNrdWxsIC0tPjxyZWN0IHg9IjI0IiB5PSIxMiIgd2lkdGg9IjE2IiBoZWlnaHQ9IjE2IiBmaWxsPSIjZGRkZGRkIi8+PHJlY3QgeD0iMjYiIHk9IjI4IiB3aWR0aD0iMTIiIGhlaWdodD0iNCIgZmlsbD0iI2RkZGRkZCIvPjwhLS0gRXllcyAtLT48cmVjdCB4PSIyNiIgeT0iMTYiIHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiMxMTExMTEiLz48cmVjdCB4PSIzNCIgeT0iMTYiIHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiMxMTExMTEiLz48IS0tIFB1cGlscyAoR3JlZW4pIC0tPjxyZWN0IHg9IjI3IiB5PSIxNyIgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0iIzAwZmZhYSIvPjxyZWN0IHg9IjM1IiB5PSIxNyIgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0iIzAwZmZhYSIvPjwhLS0gUmlicyAtLT48cmVjdCB4PSIyOCIgeT0iMzQiIHdpZHRoPSI4IiBoZWlnaHQ9IjIiIGZpbGw9IiNkZGRkZGQiLz48cmVjdCB4PSIyOCIgeT0iMzgiIHdpZHRoPSI4IiBoZWlnaHQ9IjIiIGZpbGw9IiNkZGRkZGQiLz48cmVjdCB4PSIyOCIgeT0iNDIiIHdpZHRoPSI4IiBoZWlnaHQ9IjIiIGZpbGw9IiNkZGRkZGQiLz48cmVjdCB4PSIzMCIgeT0iMzIiIHdpZHRoPSI0IiBoZWlnaHQ9IjE2IiBmaWxsPSIjMzMzMzMzIi8+PC9zdmc+";
 
 // AVATAR DEFINITIONS
 const AVATAR_WARRIOR = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgc2hhcGUtcmVuZGVyaW5nPSJjcmlzcEVkZ2VzIj48cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIGZpbGw9IiMwMDAwMDAiLz48cmVjdCB4PSIxNiIgeT0iMTIiIHdpZHRoPSIzMiIgaGVpZ2h0PSI0MCIgZmlsbD0iIzAwMzMwMCIvPjxyZWN0IHg9IjE4IiB5PSIxMCIgd2lkdGg9IjI4IiBoZWlnaHQ9IjQiIGZpbGw9IiMwMDU1MDAiLz48cmVjdCB4PSIyMCIgeT0iMjQiIHdpZHRoPSIyNCIgaGVpZ2h0PSI2IiBmaWxsPSIjMDAwMDAwIi8+PHJlY3QgeD0iMjIiIHk9IjI2IiB3aWR0aD0iMjAiIGhlaWdodD0iMiIgZmlsbD0iIzMzZmYzMyIvPjxyZWN0IHg9IjMwIiB5PSIzMiIgd2lkdGg9IjQiIGhlaWdodD0iMTQiIGZpbGw9IiMwMDU1MDAiLz48cmVjdCB4PSIyMiIgeT0iMzQiIHdpZHRoPSIyMCIgaGVpZ2h0PSIyIiBmaWxsPSIjMDA0NDAwIi8+PHJlY3QgeD0iMjQiIHk9IjQ4IiB3aWR0aD0iMTYiIGhlaWdodD0iNCIgZmlsbD0iIzAwNTUwMCIvPjwvc3ZnPg==";
@@ -22,7 +24,7 @@ const AVATAR_MAGE = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53M
 const AVATAR_CLERIC = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgc2hhcGUtcmVuZGVyaW5nPSJjcmlzcEVkZ2VzIj48cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIGZpbGw9IiMwMDAwMDAiLz48cmVjdCB4PSIxOCIgeT0iMTIiIHdpZHRoPSIyOCIgaGVpZ2h0PSI0MCIgZmlsbD0iIzAwNDQwMCIvPjxyZWN0IHg9IjIwIiB5PSIyMCIgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiBmaWxsPSIjMDAxMTAwIi8+PHJlY3QgeD0iMjQiIHk9IjI2IiB3aWR0aD0iNCIgaGVpZ2h0PSIyIiBmaWxsPSIjNjZmZjY2Ii8+PHJlY3QgeD0iMzYiIHk9IjI2IiB3aWR0aD0iNCIgaGVpZ2h0PSIyIiBmaWxsPSIjNjZmZjY2Ii8+PHJlY3QgeD0iMzAiIHk9IjgiIHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiNmZmZmZmYiIG9wYWNpdHk9IjAuOCIvPjxyZWN0IHg9IjI4IiB5PSIzNCIgd2lkdGg9IjgiIGhlaWdodD0iMiIgZmlsbD0iIzAwNjYwMCIvPjwvc3ZnPg==";
 const AVATAR_BARBARIAN = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgc2hhcGUtcmVuZGVyaW5nPSJjcmlzcEVkZ2VzIj48cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIGZpbGw9IiMwMDAwMDAiLz48cmVjdCB4PSIxNiIgeT0iMTYiIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgZmlsbD0iIzAwMzMwMCIvPjxyZWN0IHg9IjE0IiB5PSI4IiB3aWR0aD0iMzYiIGhlaWdodD0iMTIiIGZpbGw9IiMwMDU1MDAiLz48cmVjdCB4PSIxMiIgeT0iMTIiIHdpZHRoPSI0IiBoZWlnaHQ9IjI0IiBmaWxsPSIjMDA1NTAwIi8+PHJlY3QgeD0iNDgiIHk9IjEyIiB3aWR0aD0iNCIgaGVpZ2h0PSIyNCIgZmlsbD0iIzAwNTUwMCIvPjxyZWN0IHg9IjIyIiB5PSIyNCIgd2lkdGg9IjYiIGhlaWdodD0iNCIgZmlsbD0iIzAwMDAwMCIvPjxyZWN0IHg9IjM2IiB5PSIyNCIgd2lkdGg9IjYiIGhlaWdodD0iNCIgZmlsbD0iIzAwMDAwMCIvPjxyZWN0IHg9IjIzIiB5PSIyNSIgd2lkdGg9IjIiIGhlaWdodD0iMiIgZmlsbD0iI2ZmZmZmZiIvPjxyZWN0IHg9IjM3IiB5PSIyNSIgd2lkdGg9IjIiIGhlaWdodD0iMiIgZmlsbD0iI2ZmZmZmZiIvPjxyZWN0IHg9IjIyIiB5PSIzMCIgd2lkdGg9IjQiIGhlaWdodD0iMiIgZmlsbD0iIzAwNTUwMCIvPjxyZWN0IHg9IjM4IiB5PSIzMCIgd2lkdGg9IjQiIGhlaWdodD0iMiIgZmlsbD0iIzAwNTUwMCIvPjxyZWN0IHg9IjMwIiB5PSIzOCIgd2lkdGg9IjQiIGhlaWdodD0iMiIgZmlsbD0iIzAwMDAwMCIvPjwvc3ZnPg==";
 const AVATAR_ARCHER = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgc2hhcGUtcmVuZGVyaW5nPSJjcmlzcEVkZ2VzIj48cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIGZpbGw9IiMwMDAwMDAiLz48cmVjdCB4PSIxOCIgeT0iMTIiIHdpZHRoPSIyOCIgaGVpZ2h0PSI4IiBmaWxsPSIjMDA1NTAwIi8+PHJlY3QgeD0iMjAiIHk9IjIwIiB3aWR0aD0iMjQiIGhlaWdodD0iMjgiIGZpbGw9IiMwMDIyMDAiLz48cmVjdCB4PSIyNCIgeT0iMjQiIHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiMzM2ZmMzMiLz48cmVjdCB4PSIzMCIgeT0iMjIiIHdpZHRoPSIxMiIgaGVpZ2h0PSIxMCIgZmlsbD0iIzAwNDQwMCIvPjxyZWN0IHg9IjMyIiB5PSIyNCIgd2lkdGg9IjgiIGhlaWdodD0iNiIgZmlsbD0iIzAwZmYwMCIgb3BhY2l0eT0iMC41Ii8+PHJlY3QgeD0iMzUiIHk9IjI2IiB3aWR0aD0iMiIgaGVpZ2h0PSIyIiBmaWxsPSIjZmZmZmZmIi8+PHJlY3QgeD0iMzAiIHk9IjQwIiB3aWR0aD0iNCIgaGVpZ2h0PSIyIiBmaWxsPSIjMDAwMDAwIi8+PC9zdmc+";
-const AVATAR_ROGUE = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgc2hhcGUtcmVuZGVyaW5nPSJjcmlzcEVkZ2VzIj48cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIGZpbGw9IiMwMDAwMDAiLz48cmVjdCB4PSIxOCIgeT0iMTIiIHdpZHRoPSIyOCIgaGVpZ2h0PSIzNiIgZmlsbD0iIzAwMzMwMCIvPjxyZWN0IHg9IjIwIiB5PSIyNCIgd2lkdGg9IjEwIiBoZWlnaHQ9IjYiIGZpbGw9IiMwMDU1MDAiLz48cmVjdCB4PSIzNCIgeT0iMjQiIHdpZHRoPSIxMCIgaGVpZ2h0PSI2IiBmaWxsPSIjMDA1NTAwIi8+PHJlY3QgeD0iMjIiIHk9IjI1IiB3aWR0aD0iNiIgaGVpZ2h0PSI0IiBmaWxsPSIjZmYwMDAwIiBvcGFjaXR5PSIwLjUiLz48cmVjdCB4PSIzNiIgeT0iMjUiIHdpZHRoPSI2IiBoZWlnaHQ9IjQiIGZpbGw9IiNmZmZmZmYiIG9wYWNpdHk9IjAuNSIvPjxyZWN0IHg9IjE4IiB5PSIzNCIgd2lkdGg9IjI4IiBoZWlnaHQ9IjE0IiBmaWxsPSIjMDAyMjAwIi8+PHJlY3QgeD0iMzAiIHk9IjM2IiB3aWR0aD0iNCIgaGVpZ2h0PSIyIiBmaWxsPSIjMDAxMTAwIiBvcGFjaXR5PSIwLjMiLz48L3N2Zz4=";
+const AVATAR_ROGUE = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgc2hhcGUtcmVuZGVyaW5nPSJjcmlzcEVkZ2VzIj48cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIGZpbGw9IiMwMDAwMDAiLz48cmVjdCB4PSIxOCIgeT0iMTIiIHdpZHRoPSIyOCIgaGVpZ2h0PSIzNiIgZmlsbD0iIzAwMzMwMCIvPjxyZWN0IHg9IjIwIiB5PSIyNCIgd2lkdGg9IjEwIiBoZWlnaHQ9IjYiIGZpbGw9IiMwMDU1MDAiLz48cmVjdCB4PSIzNCIgeT0iMjQiIHdpZHRoPSIxMCIgaGVpZ2h0PSI2IiBmaWxsPSIjMDA1NTAwIi8+PHJlY3QgeD0iMjIiIHk9IjI1IiB3aWR0aD0iNiIgaGVpZ2h0PSI0IiBmaWxsPSIjZmYwMDAwIiAvPjxyZWN0IHg9IjM2IiB5PSIyNSIgd2lkdGg9IjYiIGhlaWdodD0iNCIgZmlsbD0iI2ZmMDAwMCIgLz48cmVjdCB4PSIxOCIgeT0iMzQiIHdpZHRoPSIyOCIgaGVpZ2h0PSIxNCIgZmlsbD0iIzAwMjIwMCIvPjxyZWN0IHg9IjMwIiB5PSIzNiIgd2lkdGg9IjQiIGhlaWdodD0iMiIgZmlsbD0iIzAwMTEwMCIgb3BhY2l0eT0iMC4zIi8+PC9zdmc+";
 
 export const MOD_POOL: ItemMod[] = [
   { name: 'of Power', stat: 'str', value: 2 },
@@ -90,14 +92,9 @@ export const ENEMIES: Enemy[] = [
         xpValue: 40, goldValue: 20,
         color: '#cccccc', seed: 4, prompt: 'skeleton',
         buffs: [],
-        avatar: AVATAR_TRAVELER
+        avatar: AVATAR_SKELETON
     }
 ];
-
-// --- SKILLS EXPANSION ---
-// 15 Actives + 8 Passives per class. 
-// Starting skills: Warrior (Bash, Cleave), Mage (Fireball, Mana Surge), Rogue (Backstab, Poison), 
-// Cleric (Heal, Smite), Barbarian (Rage, Shout), Archer (Power Shot, Volley)
 
 const WARRIOR_SKILLS: Skill[] = [
     // Active
@@ -207,244 +204,203 @@ const CLERIC_SKILLS: Skill[] = [
     { id: 'c_p_life', name: 'Life', desc: 'Passive HP boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 18, passiveStat: 'maxHp', passiveVal: 30 },
     { id: 'c_p_merc', name: 'Mercy', desc: 'Passive CHA boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 26, passiveStat: 'cha', passiveVal: 10 },
     { id: 'c_p_aur', name: 'Aura', desc: 'Passive MAG boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 34, passiveStat: 'mAtk', passiveVal: 10 },
-    { id: 'c_p_div', name: 'Divinity', desc: 'Large MP boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 42, passiveStat: 'maxMp', passiveVal: 80 },
-    { id: 'c_p_saint', name: 'Saint', desc: 'Large INT boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 55, passiveStat: 'int', passiveVal: 20 }
+    { id: 'c_p_sanct', name: 'Sanctity', desc: 'Passive RES boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 42, passiveStat: 'mDef', passiveVal: 15 },
+    { id: 'c_p_div', name: 'Divinity', desc: 'Large MAG boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 55, passiveStat: 'mAtk', passiveVal: 20 }
 ];
 
 const BARBARIAN_SKILLS: Skill[] = [
     // Active
-    { id: 'b_rage', name: 'Rage Strike', desc: 'High damage, cost HP.', cost: 0, type: 'attack', targetType: 'enemy', minLevel: 1, basePower: 2.0 },
-    { id: 'b_shout', name: 'War Cry', desc: 'Buff Party Atk.', cost: 20, type: 'buff', targetType: 'ally', isAoe: true, minLevel: 1 },
-    { id: 'b_smash', name: 'Smash', desc: 'Basic strong hit.', cost: 8, type: 'attack', targetType: 'enemy', minLevel: 4, basePower: 1.3 },
-    { id: 'b_endure', name: 'Endure', desc: 'Buff VIT + Heal.', cost: 15, type: 'buff', targetType: 'self', minLevel: 8 },
-    { id: 'b_blood', name: 'Bloodthirst', desc: 'Attack drains HP.', cost: 10, type: 'attack', targetType: 'enemy', minLevel: 12, basePower: 1.2 },
-    { id: 'b_berserk', name: 'Berserk', desc: 'Gain ATK, Lose DEF.', cost: 20, type: 'buff', targetType: 'self', minLevel: 16 },
-    { id: 'b_whirl', name: 'Whirlwind', desc: 'Hit all enemies.', cost: 25, type: 'attack', targetType: 'enemy', isAoe: true, minLevel: 20, basePower: 1.0 },
-    { id: 'b_crush', name: 'Skull Crush', desc: 'Lower enemy DEF.', cost: 18, type: 'attack', targetType: 'enemy', minLevel: 24, basePower: 1.4 },
-    { id: 'b_roar', name: 'Intimidating Roar', desc: 'Stun enemies.', cost: 30, type: 'special', targetType: 'enemy', isAoe: true, minLevel: 28 },
-    { id: 'b_exec', name: 'Guillotine', desc: 'Massive dmg, low ACC.', cost: 35, type: 'attack', targetType: 'enemy', minLevel: 35, basePower: 3.0 },
-    { id: 'b_ignore', name: 'Ignore Pain', desc: 'Temp Invincibility.', cost: 50, type: 'buff', targetType: 'self', minLevel: 40 },
-    { id: 'b_quake', name: 'Earth Slam', desc: 'AOE + Slow.', cost: 40, type: 'attack', targetType: 'enemy', isAoe: true, minLevel: 45, basePower: 1.5 },
-    { id: 'b_frenzy', name: 'Frenzy', desc: '5 Random hits.', cost: 50, type: 'attack', targetType: 'enemy', isAoe: true, minLevel: 50, basePower: 0.8 },
-    { id: 'b_titan', name: 'Titan Form', desc: 'Double Max HP.', cost: 60, type: 'buff', targetType: 'self', minLevel: 55 },
-    { id: 'b_catac', name: 'Cataclysm', desc: 'All HP to Dmg.', cost: 0, type: 'attack', targetType: 'enemy', isAoe: true, minLevel: 60, basePower: 5.0 },
+    { id: 'b_rage', name: 'Rage', desc: 'Buff ATK, lower DEF.', cost: 5, type: 'buff', targetType: 'self', minLevel: 1 },
+    { id: 'b_shout', name: 'Battle Shout', desc: 'Buff Party ATK.', cost: 10, type: 'buff', targetType: 'ally', isAoe: true, minLevel: 1 },
+    { id: 'b_smash', name: 'Smash', desc: 'Heavy single hit.', cost: 8, type: 'attack', targetType: 'enemy', minLevel: 4, basePower: 1.4 },
+    { id: 'b_whirl', name: 'Whirlwind', desc: 'Hit all enemies.', cost: 15, type: 'attack', targetType: 'enemy', isAoe: true, minLevel: 8, basePower: 0.9 },
+    { id: 'b_blood', name: 'Bloodlust', desc: 'Heal on hit.', cost: 12, type: 'attack', targetType: 'enemy', minLevel: 12, basePower: 1.1 },
+    { id: 'b_crush', name: 'Skull Crush', desc: 'Lower enemy DEF.', cost: 15, type: 'special', targetType: 'enemy', minLevel: 16, basePower: 1.3 },
+    { id: 'b_ignore', name: 'Ignore Pain', desc: 'Temp HP Boost.', cost: 20, type: 'buff', targetType: 'self', minLevel: 20 },
+    { id: 'b_zerk', name: 'Berserk', desc: 'Multi-hit, low acc.', cost: 25, type: 'attack', targetType: 'enemy', minLevel: 24, basePower: 1.8 },
+    { id: 'b_fear', name: 'Fear Roar', desc: 'Stun enemies.', cost: 30, type: 'special', targetType: 'enemy', isAoe: true, minLevel: 28 },
+    { id: 'b_execute', name: 'Decapitate', desc: 'Fatal to low HP.', cost: 35, type: 'attack', targetType: 'enemy', minLevel: 35, basePower: 2.8 },
+    { id: 'b_ram', name: 'Battering Ram', desc: 'High Dmg + Recoil.', cost: 30, type: 'attack', targetType: 'enemy', minLevel: 40, basePower: 2.2 },
+    { id: 'b_endure', name: 'Undying', desc: 'Cannot die for 2 turns.', cost: 50, type: 'buff', targetType: 'self', minLevel: 45 },
+    { id: 'b_quake', name: 'Earthshatter', desc: 'Massive AOE.', cost: 45, type: 'attack', targetType: 'enemy', isAoe: true, minLevel: 50, basePower: 2.0 },
+    { id: 'b_frenzy', name: 'Frenzy', desc: 'Max ATK, 0 DEF.', cost: 40, type: 'buff', targetType: 'self', minLevel: 55 },
+    { id: 'b_cataclysm', name: 'Cataclysm', desc: 'Ultimate Damage.', cost: 80, type: 'attack', targetType: 'enemy', minLevel: 60, basePower: 4.5 },
     // Passive
-    { id: 'b_p_flesh', name: 'Iron Flesh', desc: 'Passive HP boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 2, passiveStat: 'maxHp', passiveVal: 50 },
-    { id: 'b_p_str', name: 'Muscle', desc: 'Passive STR boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 6, passiveStat: 'str', passiveVal: 5 },
-    { id: 'b_p_tough', name: 'Toughness', desc: 'Passive VIT boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 10, passiveStat: 'vit', passiveVal: 5 },
-    { id: 'b_p_brawl', name: 'Brawler', desc: 'Passive ATK boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 18, passiveStat: 'atk', passiveVal: 5 },
-    { id: 'b_p_thick', name: 'Thick Skin', desc: 'Passive DEF boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 26, passiveStat: 'def', passiveVal: 10 },
-    { id: 'b_p_vis', name: 'Vigor', desc: 'Passive HP boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 34, passiveStat: 'maxHp', passiveVal: 100 },
-    { id: 'b_p_might', name: 'Might', desc: 'Large STR boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 42, passiveStat: 'str', passiveVal: 15 },
-    { id: 'b_p_imm', name: 'Immortal', desc: 'Large VIT boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 55, passiveStat: 'vit', passiveVal: 20 }
+    { id: 'b_p_str', name: 'Muscle', desc: 'Passive STR boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 2, passiveStat: 'str', passiveVal: 5 },
+    { id: 'b_p_hp', name: 'Thick Skin', desc: 'Passive HP boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 6, passiveStat: 'maxHp', passiveVal: 30 },
+    { id: 'b_p_dmg', name: 'Brutality', desc: 'Passive ATK boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 10, passiveStat: 'atk', passiveVal: 8 },
+    { id: 'b_p_crit', name: 'Reckless', desc: 'Passive Crit boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 18, passiveStat: 'critChance', passiveVal: 8 },
+    { id: 'b_p_vit', name: 'Iron Gut', desc: 'Passive VIT boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 26, passiveStat: 'vit', passiveVal: 8 },
+    { id: 'b_p_cdmg', name: 'Savagery', desc: 'Passive CritDMG', cost: 0, type: 'passive', targetType: 'self', minLevel: 34, passiveStat: 'critDamage', passiveVal: 25 },
+    { id: 'b_p_res', name: 'Resilience', desc: 'Passive RES boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 42, passiveStat: 'mDef', passiveVal: 10 },
+    { id: 'b_p_titan', name: 'Titan', desc: 'Massive STR boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 55, passiveStat: 'str', passiveVal: 15 }
 ];
 
 const ARCHER_SKILLS: Skill[] = [
     // Active
-    { id: 'a_shot', name: 'Power Shot', desc: 'Strong ranged attack.', cost: 8, type: 'attack', targetType: 'enemy', minLevel: 1, basePower: 1.4 },
-    { id: 'a_volley', name: 'Volley', desc: 'Hit random enemies.', cost: 15, type: 'attack', targetType: 'enemy', isAoe: true, minLevel: 1, basePower: 0.7 },
-    { id: 'a_fire', name: 'Fire Arrow', desc: 'Burn target.', cost: 12, type: 'attack', targetType: 'enemy', minLevel: 4, basePower: 1.1 },
-    { id: 'a_eye', name: 'Eagle Eye', desc: 'Buff Crit Chance.', cost: 12, type: 'buff', targetType: 'self', minLevel: 8 },
-    { id: 'a_ice', name: 'Ice Arrow', desc: 'Slow target.', cost: 12, type: 'attack', targetType: 'enemy', minLevel: 12, basePower: 1.1 },
-    { id: 'a_pierce', name: 'Piercing Shot', desc: 'Ignore 50% DEF.', cost: 18, type: 'attack', targetType: 'enemy', minLevel: 16, basePower: 1.3 },
-    { id: 'a_poison', name: 'Toxic Shot', desc: 'Strong Poison.', cost: 15, type: 'attack', targetType: 'enemy', minLevel: 20, basePower: 1.0 },
-    { id: 'a_multi', name: 'Multishot', desc: 'AOE damage.', cost: 25, type: 'attack', targetType: 'enemy', isAoe: true, minLevel: 24, basePower: 1.0 },
-    { id: 'a_snare', name: 'Snare Trap', desc: 'Stun enemy.', cost: 20, type: 'special', targetType: 'enemy', minLevel: 28 },
-    { id: 'a_snipe', name: 'Snipe', desc: 'High Crit Dmg.', cost: 30, type: 'attack', targetType: 'enemy', minLevel: 35, basePower: 2.5 },
-    { id: 'a_rain', name: 'Arrow Rain', desc: 'Massive AOE.', cost: 40, type: 'attack', targetType: 'enemy', isAoe: true, minLevel: 40, basePower: 1.5 },
-    { id: 'a_conc', name: 'Concentrate', desc: 'Next hit 100% Crit.', cost: 30, type: 'buff', targetType: 'self', minLevel: 45 },
-    { id: 'a_explo', name: 'Explosive', desc: 'Fire AOE.', cost: 45, type: 'attack', targetType: 'enemy', isAoe: true, minLevel: 50, basePower: 1.8 },
-    { id: 'a_phantom', name: 'Phantom', desc: 'Buff Evasion.', cost: 35, type: 'buff', targetType: 'self', minLevel: 55 },
-    { id: 'a_ballista', name: 'Ballista', desc: 'Ultimate Shot.', cost: 60, type: 'attack', targetType: 'enemy', minLevel: 60, basePower: 4.0 },
+    { id: 'a_shot', name: 'Power Shot', desc: 'Strong single hit.', cost: 8, type: 'attack', targetType: 'enemy', minLevel: 1, basePower: 1.3 },
+    { id: 'a_volley', name: 'Volley', desc: 'Hit random enemies.', cost: 12, type: 'attack', targetType: 'enemy', isAoe: true, minLevel: 1, basePower: 0.8 },
+    { id: 'a_eye', name: 'Eagle Eye', desc: 'Buff Accuracy/Crit.', cost: 10, type: 'buff', targetType: 'self', minLevel: 4 },
+    { id: 'a_fire', name: 'Fire Arrow', desc: 'Burn damage.', cost: 12, type: 'attack', targetType: 'enemy', minLevel: 8, basePower: 1.1 },
+    { id: 'a_pin', name: 'Pinning Shot', desc: 'Lower enemy EVA.', cost: 15, type: 'special', targetType: 'enemy', minLevel: 12, basePower: 1.0 },
+    { id: 'a_pierce', name: 'Pierce', desc: 'Ignore Defense.', cost: 18, type: 'attack', targetType: 'enemy', minLevel: 16, basePower: 1.2 },
+    { id: 'a_rain', name: 'Arrow Rain', desc: 'AOE damage.', cost: 25, type: 'attack', targetType: 'enemy', isAoe: true, minLevel: 20, basePower: 1.3 },
+    { id: 'a_head', name: 'Headshot', desc: 'High Crit chance.', cost: 30, type: 'attack', targetType: 'enemy', minLevel: 24, basePower: 1.8 },
+    { id: 'a_poison', name: 'Toxic Shot', desc: 'Strong Poison.', cost: 20, type: 'special', targetType: 'enemy', minLevel: 28, basePower: 1.0 },
+    { id: 'a_multi', name: 'Multishot', desc: 'Hit 4 times.', cost: 35, type: 'attack', targetType: 'enemy', minLevel: 35, basePower: 0.6 },
+    { id: 'a_snare', name: 'Snare', desc: 'Stun enemy.', cost: 30, type: 'special', targetType: 'enemy', minLevel: 40 },
+    { id: 'a_conc', name: 'Concentrate', desc: 'Next hit 100% crit.', cost: 40, type: 'buff', targetType: 'self', minLevel: 45 },
+    { id: 'a_blast', name: 'Explosive', desc: 'Heavy AOE.', cost: 45, type: 'attack', targetType: 'enemy', isAoe: true, minLevel: 50, basePower: 2.0 },
+    { id: 'a_snipe', name: 'Snipe', desc: 'Massive range dmg.', cost: 60, type: 'attack', targetType: 'enemy', minLevel: 55, basePower: 3.5 },
+    { id: 'a_god', name: 'Apollo', desc: 'Ultimate Volley.', cost: 80, type: 'attack', targetType: 'enemy', isAoe: true, minLevel: 60, basePower: 3.0 },
     // Passive
-    { id: 'a_p_prec', name: 'Precision', desc: 'Passive ACC boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 2, passiveStat: 'acc', passiveVal: 10 },
-    { id: 'a_p_dex', name: 'Finesse', desc: 'Passive DEX boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 6, passiveStat: 'dex', passiveVal: 5 },
-    { id: 'a_p_keen', name: 'Keen Eye', desc: 'Passive Crit boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 10, passiveStat: 'critChance', passiveVal: 5 },
-    { id: 'a_p_luck', name: 'Fortune', desc: 'Passive CHA boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 18, passiveStat: 'cha', passiveVal: 10 },
-    { id: 'a_p_mob', name: 'Mobility', desc: 'Passive EVA boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 26, passiveStat: 'eva', passiveVal: 10 },
-    { id: 'a_p_leth', name: 'Lethality', desc: 'Passive CritDMG', cost: 0, type: 'passive', targetType: 'self', minLevel: 34, passiveStat: 'critDamage', passiveVal: 20 },
-    { id: 'a_p_mast', name: 'Bow Mastery', desc: 'Large ATK boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 42, passiveStat: 'atk', passiveVal: 15 },
-    { id: 'a_p_legolas', name: 'Legend', desc: 'Large DEX boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 55, passiveStat: 'dex', passiveVal: 20 }
+    { id: 'a_p_dex', name: 'Deadeye', desc: 'Passive DEX boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 2, passiveStat: 'dex', passiveVal: 5 },
+    { id: 'a_p_acc', name: 'Steady', desc: 'Passive ACC boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 6, passiveStat: 'acc', passiveVal: 10 },
+    { id: 'a_p_crit', name: 'Precision', desc: 'Passive Crit boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 10, passiveStat: 'critChance', passiveVal: 8 },
+    { id: 'a_p_eva', name: 'Evasion', desc: 'Passive EVA boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 18, passiveStat: 'eva', passiveVal: 8 },
+    { id: 'a_p_spd', name: 'Reflex', desc: 'Passive DEX boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 26, passiveStat: 'dex', passiveVal: 8 },
+    { id: 'a_p_cdmg', name: 'Lethal', desc: 'Passive CritDMG', cost: 0, type: 'passive', targetType: 'self', minLevel: 34, passiveStat: 'critDamage', passiveVal: 20 },
+    { id: 'a_p_range', name: 'Longbow', desc: 'Passive ATK boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 42, passiveStat: 'atk', passiveVal: 10 },
+    { id: 'a_p_master', name: 'Mastery', desc: 'Massive DEX boost', cost: 0, type: 'passive', targetType: 'self', minLevel: 55, passiveStat: 'dex', passiveVal: 15 }
 ];
 
 export const CLASSES: ClassDefinition[] = [
   {
     type: 'WARRIOR',
     avatar: AVATAR_WARRIOR,
-    description: 'A sturdy fighter who excels in defense and physical power.',
-    hp: 120, mp: 30, str: 10, int: 2, dex: 5, vit: 10, cha: 3,
+    description: "A stalwart defender. High HP and Defense. Uses Rage to fuel attacks.",
+    hp: 120, mp: 40, str: 8, int: 2, dex: 4, vit: 8, cha: 3,
     skillPool: WARRIOR_SKILLS,
     starterSkillIds: ['w_bash', 'w_cleave']
   },
   {
     type: 'MAGE',
     avatar: AVATAR_MAGE,
-    description: 'Master of arcane arts, dealing high magic damage.',
-    hp: 70, mp: 100, str: 2, int: 12, dex: 4, vit: 3, cha: 5,
+    description: "Master of elements. High Magic Attack and MP. Low Defense.",
+    hp: 70, mp: 120, str: 2, int: 10, dex: 5, vit: 3, cha: 4,
     skillPool: MAGE_SKILLS,
     starterSkillIds: ['m_fire', 'm_surge']
   },
   {
     type: 'ROGUE',
     avatar: AVATAR_ROGUE,
-    description: 'Agile and cunning, skilled in critical strikes and theft.',
-    hp: 90, mp: 50, str: 6, int: 4, dex: 12, vit: 4, cha: 6,
+    description: "Shadow dweller. High Critical and Evasion. Deals burst damage.",
+    hp: 90, mp: 60, str: 5, int: 3, dex: 10, vit: 4, cha: 2,
     skillPool: ROGUE_SKILLS,
     starterSkillIds: ['r_dage', 'r_pois']
   },
   {
     type: 'CLERIC',
     avatar: AVATAR_CLERIC,
-    description: 'Holy healer who keeps the party alive.',
-    hp: 100, mp: 80, str: 5, int: 8, dex: 3, vit: 6, cha: 8,
+    description: "Holy healer. Keeps the party alive. Decent Defense.",
+    hp: 100, mp: 100, str: 4, int: 8, dex: 3, vit: 6, cha: 5,
     skillPool: CLERIC_SKILLS,
     starterSkillIds: ['c_heal', 'c_smite']
   },
   {
     type: 'BARBARIAN',
     avatar: AVATAR_BARBARIAN,
-    description: 'A rage-fueled brawler with massive health.',
-    hp: 150, mp: 20, str: 12, int: 1, dex: 6, vit: 8, cha: 2,
+    description: "Savage fighter. High HP and Strength. Low Magic Defense.",
+    hp: 140, mp: 30, str: 10, int: 1, dex: 5, vit: 7, cha: 2,
     skillPool: BARBARIAN_SKILLS,
-    starterSkillIds: ['b_rage', 'b_shout']
+    starterSkillIds: ['b_rage', 'b_smash']
   },
   {
     type: 'ARCHER',
     avatar: AVATAR_ARCHER,
-    description: 'Ranged specialist with keen accuracy.',
-    hp: 90, mp: 40, str: 8, int: 3, dex: 10, vit: 4, cha: 4,
+    description: "Ranged striker. High Accuracy and Dexterity. Balanced stats.",
+    hp: 90, mp: 70, str: 5, int: 3, dex: 9, vit: 5, cha: 3,
     skillPool: ARCHER_SKILLS,
     starterSkillIds: ['a_shot', 'a_volley']
   }
 ];
 
 export const generateDungeon = (): number[][][] => {
-  const floors: number[][][] = [];
-  
-  for (let i = 0; i < 5; i++) {
-    const grid = Array(DUNGEON_SIZE).fill(0).map(() => Array(DUNGEON_SIZE).fill(1));
-    let cx = 1;
-    let cy = 1;
-    grid[cy][cx] = 0;
-    
-    const floorTiles: {x: number, y: number}[] = [{x: cx, y: cy}];
-    const targetFloorCount = Math.floor(DUNGEON_SIZE * DUNGEON_SIZE * 0.35);
-    let currentFloorCount = 1;
-    let attempts = 0;
-    const maxAttempts = 5000;
+    const floors: number[][][] = [];
+    const floorCount = 5;
 
-    // Standard Maze Generation
-    while (currentFloorCount < targetFloorCount && attempts < maxAttempts) {
-      attempts++;
-      const origin = Math.random() > 0.5 
-        ? floorTiles[floorTiles.length - 1] 
-        : floorTiles[Math.floor(Math.random() * floorTiles.length)];
-      let tx = origin.x;
-      let ty = origin.y;
-      const dirs = [{x:0, y:-1}, {x:1, y:0}, {x:0, y:1}, {x:-1, y:0}];
-      const dir = dirs[Math.floor(Math.random() * dirs.length)];
-      const len = 3 + Math.floor(Math.random() * 5);
-      for (let j = 0; j < len; j++) {
-        const nx = tx + dir.x;
-        const ny = ty + dir.y;
-        if (nx >= 1 && nx < DUNGEON_SIZE - 1 && ny >= 1 && ny < DUNGEON_SIZE - 1) {
-           if (grid[ny][nx] === 1) {
-             grid[ny][nx] = 0;
-             currentFloorCount++;
-             floorTiles.push({x: nx, y: ny});
-           }
-           tx = nx;
-           ty = ny;
-        } else break;
-      }
-    }
+    for (let f = 0; f < floorCount; f++) {
+        // Init full wall
+        const map: number[][] = Array(DUNGEON_SIZE).fill(0).map(() => Array(DUNGEON_SIZE).fill(1));
 
-    const emptySpots: {x:number, y:number}[] = [];
-    for (let r = 0; r < DUNGEON_SIZE; r++) {
-      for (let c = 0; c < DUNGEON_SIZE; c++) {
-        if (grid[r][c] === 0 && !(r === 1 && c === 1)) emptySpots.push({x: c, y: r});
-      }
-    }
-    
-    // --- SECRET PASSAGE GENERATION (Floor 1 Only) ---
-    if (i === 0) {
-        let secretsCreated = 0;
-        const targetSecrets = 5; // 4 chests, 1 NPC
-        const shuffledSpots = [...floorTiles].sort(() => Math.random() - 0.5);
-        const directions = [{x:0, y:-1}, {x:1, y:0}, {x:0, y:1}, {x:-1, y:0}];
+        // Simple Random Walk Carving
+        let x = 1;
+        let y = 1;
+        map[y][x] = 0; // Start point
+        
+        let steps = 150;
+        while (steps > 0) {
+            const dir = Math.floor(Math.random() * 4);
+            let nx = x;
+            let ny = y;
+            if (dir === 0) ny--;
+            else if (dir === 1) nx++;
+            else if (dir === 2) ny++;
+            else if (dir === 3) nx--;
 
-        for (const spot of shuffledSpots) {
-            if (secretsCreated >= targetSecrets) break;
+            if (nx > 0 && nx < DUNGEON_SIZE - 1 && ny > 0 && ny < DUNGEON_SIZE - 1) {
+                x = nx;
+                y = ny;
+                if (Math.random() < 0.1 && f > 0) {
+                     // 10% chance to place secret wall instead of floor, but not on floor 0 start path generally
+                     // Keeping it simple for now:
+                     map[y][x] = 0;
+                } else {
+                     map[y][x] = 0;
+                }
+                steps--;
+            }
+        }
 
-            // Try to find a valid wall to punch through
-            for (const d of directions) {
-                const wallX = spot.x + d.x;
-                const wallY = spot.y + d.y;
-                const secretX = spot.x + (d.x * 2);
-                const secretY = spot.y + (d.y * 2);
+        // Place Stairs at last position
+        map[y][x] = 3;
 
-                if (secretX > 0 && secretX < DUNGEON_SIZE - 1 && secretY > 0 && secretY < DUNGEON_SIZE - 1) {
-                    // Check if the wall is a wall, and the spot behind it is also a wall (to carve a room)
-                    if (grid[wallY][wallX] === 1 && grid[secretY][secretX] === 1) {
-                        // Check if Secret Room has no other neighbors (keep it hidden)
-                        let neighborCount = 0;
-                        for (const nd of directions) {
-                            if (grid[secretY + nd.y][secretX + nd.x] === 0) neighborCount++;
-                        }
-                        
-                        if (neighborCount === 0) {
-                            grid[wallY][wallX] = 9; // Illusion Wall
-                            grid[secretY][secretX] = secretsCreated === 0 ? 6 : 4; // 1 NPC (6), rest Chests (4)
-                            secretsCreated++;
-                            break; // Move to next spot to avoid clustering
-                        }
-                    }
+        // Place Guaranteed Merchant on Floor 0 at (1,2) for intro sequence
+        if (f === 0) {
+            // Ensure path to merchant exists
+            map[2][1] = 5;
+            map[1][1] = 0; // Start
+            // Ensure clear space around
+            map[1][2] = 0;
+            map[2][2] = 0;
+        } else {
+            // Random Merchant on other floors
+            let placed = false;
+            while (!placed) {
+                const rx = Math.floor(Math.random() * (DUNGEON_SIZE - 2)) + 1;
+                const ry = Math.floor(Math.random() * (DUNGEON_SIZE - 2)) + 1;
+                if (map[ry][rx] === 0) {
+                    map[ry][rx] = 5;
+                    placed = true;
                 }
             }
         }
-    }
-    // ------------------------------------------------
 
-    let maxDist = -1;
-    let stairSpot = emptySpots[0];
-    emptySpots.forEach(spot => {
-      const dist = Math.abs(spot.x - 1) + Math.abs(spot.y - 1);
-      if (dist > maxDist) { maxDist = dist; stairSpot = spot; }
-    });
-    if (stairSpot) {
-      grid[stairSpot.y][stairSpot.x] = 3;
-      const idx = emptySpots.findIndex(s => s.x === stairSpot.x && s.y === stairSpot.y);
-      if (idx > -1) emptySpots.splice(idx, 1);
+        // Place Chests
+        let chests = 3;
+        while (chests > 0) {
+            const rx = Math.floor(Math.random() * (DUNGEON_SIZE - 2)) + 1;
+            const ry = Math.floor(Math.random() * (DUNGEON_SIZE - 2)) + 1;
+            if (map[ry][rx] === 0) {
+                map[ry][rx] = 4;
+                chests--;
+            }
+        }
+        
+        // Place Traveler (NPC) occasionally
+        if (Math.random() < 0.4) {
+            let placed = false;
+            while (!placed) {
+                const rx = Math.floor(Math.random() * (DUNGEON_SIZE - 2)) + 1;
+                const ry = Math.floor(Math.random() * (DUNGEON_SIZE - 2)) + 1;
+                if (map[ry][rx] === 0) {
+                    map[ry][rx] = 6;
+                    placed = true;
+                }
+            }
+        }
+        
+        floors.push(map);
     }
-    
-    const chestCount = 3 + Math.floor(Math.random() * 3);
-    for (let c = 0; c < chestCount; c++) {
-      if (emptySpots.length === 0) break;
-      const randIdx = Math.floor(Math.random() * emptySpots.length);
-      const spot = emptySpots[randIdx];
-      // Don't overwrite existing specials (like secret chests created above)
-      if (grid[spot.y][spot.x] === 0) {
-          grid[spot.y][spot.x] = 4;
-          emptySpots.splice(randIdx, 1);
-      }
-    }
-    
-    if (i === 0) {
-       // STARTING MERCHANT - Guarantees visual on startup
-       grid[2][1] = 5; 
-       const eIdx = emptySpots.findIndex(s => s.x === 1 && s.y === 2);
-       if (eIdx > -1) emptySpots.splice(eIdx, 1);
-    } else if (i === 2 || Math.random() < 0.25) {
-       if (emptySpots.length > 0) {
-         const randIdx = Math.floor(Math.random() * emptySpots.length);
-         const spot = emptySpots[randIdx];
-         if (grid[spot.y][spot.x] === 0) {
-            grid[spot.y][spot.x] = 5;
-            emptySpots.splice(randIdx, 1);
-         }
-       }
-    }
-    floors.push(grid);
-  }
-  return floors;
+    return floors;
 };

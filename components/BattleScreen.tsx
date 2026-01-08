@@ -120,6 +120,7 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
 }) => {
   const [menuState, setMenuState] = useState<MenuState>('MAIN');
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
+  const [hoveredSkill, setHoveredSkill] = useState<Skill | null>(null);
   
   const activeChar = activeCharIndex !== null ? party[activeCharIndex] : null;
   const logEndRef = useRef<HTMLDivElement>(null);
@@ -128,6 +129,7 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
   useEffect(() => {
       setMenuState('MAIN');
       setSelectedSkill(null);
+      setHoveredSkill(null);
   }, [activeCharIndex]);
 
   useEffect(() => {
@@ -227,6 +229,32 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
       );
   };
 
+  const getSkillInfo = (skill: Skill) => {
+      if (!activeChar) return { power: '-', color: 'text-gray-500' };
+      const level = activeChar.skillLevels[skill.id] || 1;
+      const stats = calculateStats(activeChar);
+      const levelMult = 1 + (level - 1) * 0.2;
+      
+      let val = 0;
+      let label = 'DMG';
+      let color = 'text-red-400';
+
+      if (skill.type === 'attack') {
+          val = Math.floor(stats.atk * (skill.basePower || 1) * levelMult);
+      } else if (skill.type === 'heal') {
+          val = Math.floor(stats.mAtk * (skill.basePower || 1.5) * levelMult); // Approx heal scaling
+          label = 'HEAL';
+          color = 'text-green-400';
+      } else if (skill.type === 'special') {
+          val = Math.floor(stats.mAtk * (skill.basePower || 1) * levelMult);
+          color = 'text-cyan-400';
+      } else {
+          return { power: 'BUFF', color: 'text-yellow-400' };
+      }
+
+      return { power: `${label} ~${val}`, color };
+  };
+
   // --- COMPACT INTELLIGENT LAYOUT RENDER ---
   const renderActionMenu = () => {
       if (!activeChar || actingId) {
@@ -240,65 +268,144 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
 
       if (menuState === 'TARGETING') {
           return (
-              <div className="w-full h-full flex flex-col border-2 border-blue-500 bg-blue-950/20 p-2 animate-pulse">
-                  <div className="text-center font-black text-blue-300 uppercase tracking-widest text-lg mb-2">SELECT TARGET</div>
-                  <div className="text-center text-xs text-blue-400 mb-4">
-                      {selectedSkill?.targetType === 'enemy' ? '>> CHOOSE ENEMY <<' : '>> CHOOSE ALLY <<'}
-                  </div>
-                  <div className="mt-auto">
-                      <button onClick={() => setMenuState('SKILLS')} className="w-full py-2 border border-red-900 text-red-500 hover:bg-red-950/50 text-xs font-bold uppercase">CANCEL</button>
+              <div className="w-full h-full flex flex-col border-2 border-blue-500 bg-blue-950/20 p-2 animate-pulse relative overflow-hidden">
+                  <div className="absolute inset-0 bg-blue-500/5 animate-[pulse_0.5s_infinite]" />
+                  <div className="relative z-10 flex flex-col h-full">
+                      <div className="text-center font-black text-blue-300 uppercase tracking-widest text-lg mb-1 drop-shadow-md">SELECT TARGET</div>
+                      
+                      <div className="bg-black/50 border border-blue-800 p-2 mb-2 text-center">
+                          <div className="text-[10px] text-blue-400 uppercase font-bold">CASTING</div>
+                          <div className="text-white font-black text-sm uppercase">{selectedSkill?.name}</div>
+                      </div>
+
+                      <div className="text-center text-xs text-white font-bold bg-blue-900/40 p-1 rounded mb-4">
+                          {selectedSkill?.targetType === 'enemy' ? '>>> CHOOSE ENEMY <<<' : '>>> CHOOSE ALLY <<<'}
+                      </div>
+                      <div className="mt-auto">
+                          <button onClick={() => setMenuState('SKILLS')} className="w-full py-3 border-2 border-red-500 bg-red-950/40 text-red-300 hover:bg-red-900 hover:text-white text-sm font-black uppercase tracking-wider transition-colors">CANCEL CAST</button>
+                      </div>
                   </div>
               </div>
           );
       }
 
       if (menuState === 'SKILLS') {
+          const displaySkill = hoveredSkill || activeChar.skills.find(s => (activeChar.skillLevels[s.id]||0) > 0);
+          
           return (
-              <div className="w-full h-full flex flex-col border-2 border-emerald-900 bg-black">
-                  <div className="flex justify-between items-center bg-emerald-900/40 p-1 px-2 border-b border-emerald-800">
-                      <span className="text-xs font-black uppercase text-emerald-400">SKILLS</span>
-                      <span className="text-[10px] font-bold text-blue-300">{activeChar.mp} MP</span>
+              <div className="w-full h-full flex flex-col border-2 border-cyan-900 bg-black relative">
+                  {/* Header */}
+                  <div className="flex justify-between items-center bg-cyan-950/50 p-1.5 px-3 border-b border-cyan-800">
+                      <span className="text-xs font-black uppercase text-cyan-400 tracking-wider">SKILL COMMAND</span>
+                      <span className="text-[10px] font-bold text-blue-300 bg-blue-950/50 px-2 py-0.5 rounded border border-blue-900">{activeChar.mp} MP</span>
                   </div>
-                  <div className="flex-1 overflow-y-auto custom-scrollbar p-1">
-                      {activeChar.skills.map(skill => {
-                          const level = activeChar.skillLevels[skill.id] || 0;
-                          if (level === 0) return null;
-                          const canAfford = activeChar.mp >= skill.cost;
-                          return (
-                              <button 
-                                key={skill.id}
-                                disabled={!canAfford}
-                                onClick={() => initSkillTargeting(skill)}
-                                className={`w-full text-left p-1 mb-1 border hover:bg-emerald-900/20 flex justify-between items-center group
-                                    ${canAfford ? 'border-emerald-900/50 text-emerald-400 cursor-pointer' : 'border-red-900/30 text-gray-600 cursor-not-allowed'}
-                                `}
-                              >
-                                  <div className="flex flex-col">
-                                      <span className="font-bold text-xs uppercase group-hover:text-white transition-colors">{skill.name}</span>
-                                      <span className="text-[8px] opacity-60">{skill.type}</span>
-                                  </div>
-                                  <div className="text-xs font-bold text-blue-500">{skill.cost}</div>
-                              </button>
-                          );
-                      })}
+
+                  {/* Split View: List & Detail */}
+                  <div className="flex-1 flex flex-col min-h-0">
+                      {/* List */}
+                      <div className="flex-1 overflow-y-auto custom-scrollbar p-1 space-y-1">
+                          {activeChar.skills.map(skill => {
+                              const level = activeChar.skillLevels[skill.id] || 0;
+                              if (level === 0) return null;
+                              const canAfford = activeChar.mp >= skill.cost;
+                              return (
+                                  <button 
+                                    key={skill.id}
+                                    disabled={!canAfford}
+                                    onMouseEnter={() => setHoveredSkill(skill)}
+                                    onClick={() => initSkillTargeting(skill)}
+                                    className={`w-full flex justify-between items-center p-2 border transition-all text-left group relative
+                                        ${canAfford ? 'border-cyan-900/40 hover:border-cyan-500 hover:bg-cyan-950/30' : 'border-gray-900 bg-gray-950/20 opacity-50 cursor-not-allowed'}
+                                        ${hoveredSkill?.id === skill.id ? 'bg-cyan-900/20 border-cyan-600' : ''}
+                                    `}
+                                  >
+                                      <div className="flex items-center gap-2">
+                                          <span className="text-[10px] w-4 text-center">{skill.type === 'attack' ? '⚔️' : skill.type === 'heal' ? '✚' : '✨'}</span>
+                                          <span className={`font-bold text-xs uppercase ${canAfford ? 'text-cyan-100' : 'text-gray-500'}`}>{skill.name}</span>
+                                      </div>
+                                      <span className={`text-[10px] font-mono font-bold ${canAfford ? 'text-blue-400' : 'text-red-900'}`}>{skill.cost} MP</span>
+                                  </button>
+                              );
+                          })}
+                      </div>
+
+                      {/* Detail Pane (Fixed at Bottom of Skill Menu) */}
+                      <div className="h-24 shrink-0 bg-cyan-950/20 border-t-2 border-cyan-800 p-2 flex flex-col justify-between">
+                          {displaySkill ? (
+                              <>
+                                <div className="flex justify-between items-start mb-1">
+                                    <span className="text-cyan-300 font-black text-xs uppercase">{displaySkill.name}</span>
+                                    <span className="text-[9px] text-cyan-600 uppercase font-bold tracking-wider">{displaySkill.type}</span>
+                                </div>
+                                <p className="text-[9px] text-cyan-500/80 italic leading-tight mb-1 h-8 overflow-hidden">
+                                    "{displaySkill.desc}"
+                                </p>
+                                <div className="flex gap-2 text-[10px] font-mono border-t border-cyan-900/50 pt-1 mt-auto">
+                                    {(() => {
+                                        const info = getSkillInfo(displaySkill);
+                                        return <span className={`font-bold ${info.color}`}>{info.power}</span>;
+                                    })()}
+                                    <span className="text-gray-500">|</span>
+                                    <span className="text-blue-400 font-bold">COST: {displaySkill.cost}</span>
+                                </div>
+                              </>
+                          ) : (
+                              <div className="text-center text-[10px] text-cyan-900 py-4">SELECT A SKILL</div>
+                          )}
+                      </div>
                   </div>
-                  <button onClick={() => setMenuState('MAIN')} className="p-2 border-t border-emerald-900 text-xs font-black text-red-500 hover:bg-red-950/30 uppercase text-center">BACK</button>
+
+                  {/* Back Button */}
+                  <button onClick={() => setMenuState('MAIN')} className="p-2 border-t-2 border-red-900/50 bg-black text-xs font-black text-red-500 hover:bg-red-950/30 uppercase text-center hover:text-red-400 transition-colors">
+                      ◀ BACK TO COMMANDS
+                  </button>
               </div>
           );
       }
 
-      // MAIN MENU
+      // MAIN MENU - GRID LAYOUT
       return (
-          <div className="w-full h-full flex flex-col gap-1 p-1">
-              <div className="flex items-center justify-between mb-1 px-1">
-                  <span className="text-xs font-black text-white uppercase bg-emerald-700 px-2 rounded-sm">{activeChar.class}</span>
-                  <span className="text-[10px] font-mono text-emerald-600">CMD_READY</span>
+          <div className="w-full h-full flex flex-col p-1 gap-1">
+              <div className="flex items-center justify-between mb-1 px-1 bg-emerald-950/30 border border-emerald-900/50 rounded py-1">
+                  <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-white uppercase bg-emerald-800 px-2 py-0.5 rounded-sm shadow-sm">{activeChar.class}</span>
+                      <span className="text-[10px] font-mono text-emerald-500 animate-pulse">COMMAND_READY</span>
+                  </div>
+                  <span className="text-[9px] text-emerald-700">ACT_ID: {activeChar.id.split('_')[2]}</span>
               </div>
-              <button onClick={onAttack} className="retro-button py-2 text-sm border-red-500 text-red-400 hover:bg-red-950/40 flex items-center justify-center gap-2"><span>⚔️</span> ATTACK</button>
-              <button onClick={() => setMenuState('SKILLS')} className="retro-button py-2 text-sm border-blue-500 text-blue-400 hover:bg-blue-950/40 flex items-center justify-center gap-2"><span>⚡</span> SKILL</button>
-              <div className="flex gap-1 flex-1">
-                  <button onClick={onDefend} className="retro-button flex-1 text-xs border-yellow-500 text-yellow-400 hover:bg-yellow-950/40">DEFEND</button>
-                  <button onClick={onRun} className="retro-button flex-1 text-xs border-gray-500 text-gray-400 hover:bg-gray-800">RUN</button>
+              
+              <div className="flex-1 grid grid-cols-2 gap-2">
+                  <button 
+                    onClick={onAttack} 
+                    className="retro-button border-red-600 text-red-500 hover:bg-red-600 hover:text-white flex flex-col items-center justify-center gap-1 transition-all active:scale-95 group"
+                  >
+                      <span className="text-2xl group-hover:scale-110 transition-transform">⚔️</span>
+                      <span className="text-xs md:text-sm tracking-widest">ATTACK</span>
+                  </button>
+                  
+                  <button 
+                    onClick={() => setMenuState('SKILLS')} 
+                    className="retro-button border-cyan-500 text-cyan-400 hover:bg-cyan-500 hover:text-black flex flex-col items-center justify-center gap-1 transition-all active:scale-95 group"
+                  >
+                      <span className="text-2xl group-hover:scale-110 transition-transform">⚡</span>
+                      <span className="text-xs md:text-sm tracking-widest">SKILL</span>
+                  </button>
+                  
+                  <button 
+                    onClick={onDefend} 
+                    className="retro-button border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-black flex flex-col items-center justify-center gap-1 transition-all active:scale-95 group"
+                  >
+                      <span className="text-2xl group-hover:scale-110 transition-transform">🛡️</span>
+                      <span className="text-xs md:text-sm tracking-widest">DEFEND</span>
+                  </button>
+                  
+                  <button 
+                    onClick={onRun} 
+                    className="retro-button border-gray-500 text-gray-400 hover:bg-gray-600 hover:text-white flex flex-col items-center justify-center gap-1 transition-all active:scale-95 group"
+                  >
+                      <span className="text-2xl group-hover:scale-110 transition-transform">🏃</span>
+                      <span className="text-xs md:text-sm tracking-widest">RUN</span>
+                  </button>
               </div>
           </div>
       );
