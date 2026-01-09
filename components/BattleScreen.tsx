@@ -203,14 +203,15 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
      return (
          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
              {texts.map(ft => {
-                 let colorClass = "text-white";
-                 if (ft.type === 'damage') colorClass = "text-red-500 font-bold text-shadow-red";
-                 else if (ft.type === 'heal') colorClass = "text-green-400 font-bold";
-                 else if (ft.type === 'miss') colorClass = "text-gray-400 font-bold";
-                 else if (ft.type === 'crit') colorClass = "text-orange-500 font-black text-2xl text-shadow-orange";
-                 else if (ft.type === 'block') colorClass = "text-blue-300 font-bold";
-                 else if (ft.type === 'loot') colorClass = "text-yellow-400 font-bold";
-                 return <div key={ft.key} className={`absolute ${colorClass} animate-float-up text-lg md:text-2xl drop-shadow-md`}>{ft.text}</div>;
+                 let colorClass = "text-white text-3xl md:text-5xl"; // Base large size
+                 if (ft.type === 'damage') colorClass = "text-red-500 font-bold text-shadow-red text-3xl md:text-5xl";
+                 else if (ft.type === 'heal') colorClass = "text-green-400 font-bold text-3xl md:text-5xl";
+                 else if (ft.type === 'miss') colorClass = "text-gray-400 font-bold text-2xl md:text-4xl";
+                 else if (ft.type === 'crit') colorClass = "text-orange-500 font-black text-5xl md:text-7xl text-shadow-orange";
+                 else if (ft.type === 'block') colorClass = "text-blue-300 font-bold text-2xl md:text-4xl";
+                 else if (ft.type === 'loot') colorClass = "text-yellow-400 font-bold text-2xl md:text-4xl";
+                 
+                 return <div key={ft.key} className={`absolute ${colorClass} animate-float-up drop-shadow-md`}>{ft.text}</div>;
              })}
          </div>
      );
@@ -416,7 +417,7 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
       {/* CSS for custom animations */}
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes float-up { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-40px); opacity: 0; } }
-        .animate-float-up { animation: float-up 0.8s ease-out forwards; }
+        .animate-float-up { animation: float-up 2.0s ease-out forwards; }
         @keyframes crit-shake { 0% { transform: scale(1); } 20% { transform: scale(1.5) rotate(5deg); } 100% { transform: scale(1) translateY(-40px); opacity: 0; } }
         .animate-crit-shake { animation: crit-shake 1s ease-out forwards; }
         @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }

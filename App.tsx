@@ -282,7 +282,7 @@ const GameContent: React.FC = () => {
       setFloatingTexts(prev => [...prev, ft]);
       setTimeout(() => {
           setFloatingTexts(prev => prev.filter(t => t.key !== ft.key));
-      }, 1000);
+      }, 2000);
   };
 
   const startAtbClock = useCallback(() => {
