@@ -1,6 +1,6 @@
 
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { Player, Enemy, LogMessage, DerivedStats, Skill } from '../types';
+import { Player, Enemy, LogMessage, DerivedStats, Skill, Item } from '../types';
 
 export type AnimationType = 'physical' | 'magical' | 'heal' | 'defend';
 
@@ -14,6 +14,7 @@ export interface FloatingText {
 interface BattleScreenProps {
   party: Player[];
   enemies: Enemy[];
+  inventory: Item[];
   activeCharIndex: number | null;
   targetIndex: number;
   setTargetIndex: (idx: number) => void;
@@ -27,14 +28,14 @@ interface BattleScreenProps {
   floatingTexts: FloatingText[];
   skeletonSprite?: string | null;
   onAttack: () => void;
-  onDefend: () => void;
+  onUseItem: (item: Item, targetIndex: number) => void;
   onSkill: (skill: Skill, targetIndex?: number) => void;
   onRun: () => void;
   calculateStats: (p: Player) => DerivedStats;
 }
 
 // Menu State Machine for Intelligent Layout
-type MenuState = 'MAIN' | 'SKILLS' | 'TARGETING';
+type MenuState = 'MAIN' | 'SKILLS' | 'ITEMS' | 'TARGETING';
 
 // Helper to inject blink animation into SVGs
 const getAnimatedAvatar = (avatar: string, identifier: string) => {
@@ -101,6 +102,7 @@ const BattleBackground = () => (
 const BattleScreen: React.FC<BattleScreenProps> = ({
   party,
   enemies,
+  inventory,
   activeCharIndex,
   targetIndex,
   setTargetIndex,
@@ -113,7 +115,7 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
   currentAnim,
   floatingTexts,
   onAttack,
-  onDefend,
+  onUseItem,
   onSkill,
   onRun,
   calculateStats
@@ -121,6 +123,7 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
   const [menuState, setMenuState] = useState<MenuState>('MAIN');
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
   const [hoveredSkill, setHoveredSkill] = useState<Skill | null>(null);
+  const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   
   const activeChar = activeCharIndex !== null ? party[activeCharIndex] : null;
   const logEndRef = useRef<HTMLDivElement>(null);
@@ -130,6 +133,7 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
       setMenuState('MAIN');
       setSelectedSkill(null);
       setHoveredSkill(null);
+      setSelectedItem(null);
   }, [activeCharIndex]);
 
   useEffect(() => {
@@ -157,8 +161,11 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
   const handleAllyClick = (idx: number) => {
       if (actingId) return;
 
-      if (menuState === 'TARGETING' && selectedSkill) {
-          if (selectedSkill.targetType === 'ally' || selectedSkill.targetType === 'self') {
+      if (menuState === 'TARGETING') {
+          if (selectedItem) {
+              onUseItem(selectedItem, idx);
+              setMenuState('MAIN');
+          } else if (selectedSkill && (selectedSkill.targetType === 'ally' || selectedSkill.targetType === 'self')) {
               onSkill(selectedSkill, idx);
               setMenuState('MAIN');
           }
@@ -169,10 +176,8 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
 
   const initSkillTargeting = (skill: Skill) => {
       if (skill.targetType === 'self') {
-          // Instant for self? Or strict targeting? Let's be strict for consistency
           setSelectedSkill(skill);
           setMenuState('TARGETING');
-          // Auto-select self to be helpful
           if (activeCharIndex !== null) setAllyTargetIndex(activeCharIndex);
       } else if (skill.targetType === 'ally') {
           setSelectedSkill(skill);
@@ -188,8 +193,14 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
       }
   };
 
+  const initItemTargeting = (item: Item) => {
+      setSelectedItem(item);
+      setMenuState('TARGETING');
+      // Default to self for convenience
+      if (activeCharIndex !== null) setAllyTargetIndex(activeCharIndex);
+  };
+
   const renderImpactOverlay = (type: AnimationType) => {
-    // ... (Same animations as before, kept for brevity)
     if(type === 'physical') return <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50"><div className="absolute w-full h-1 rotate-45 flex justify-center items-center"><div className="w-full h-full bg-white animate-slash shadow-[0_0_10px_#fff]" /></div><div className="absolute w-full h-1 -rotate-45 flex justify-center items-center"><div className="w-full h-full bg-white animate-slash shadow-[0_0_10px_#fff]" /></div></div>;
     if(type === 'magical') return <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50"><div className="w-8 h-8 rounded-full bg-cyan-400 animate-burst shadow-[0_0_20px_#22d3ee]" /></div>;
     if(type === 'heal') return <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50"><div className="text-2xl text-green-400 animate-float-up">✚</div></div>;
@@ -231,7 +242,7 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
   };
 
   const getSkillInfo = (skill: Skill) => {
-      if (!activeChar) return { power: '-', color: 'text-gray-500' };
+      if (!activeChar) return { val: 0, label: '-', color: 'text-gray-500' };
       const level = activeChar.skillLevels[skill.id] || 1;
       const stats = calculateStats(activeChar);
       const levelMult = 1 + (level - 1) * 0.2;
@@ -243,17 +254,18 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
       if (skill.type === 'attack') {
           val = Math.floor(stats.atk * (skill.basePower || 1) * levelMult);
       } else if (skill.type === 'heal') {
-          val = Math.floor(stats.mAtk * (skill.basePower || 1.5) * levelMult); // Approx heal scaling
+          val = Math.floor(stats.mAtk * (skill.basePower || 1.5) * levelMult); 
           label = 'HEAL';
           color = 'text-green-400';
       } else if (skill.type === 'special') {
           val = Math.floor(stats.mAtk * (skill.basePower || 1) * levelMult);
           color = 'text-cyan-400';
-      } else {
-          return { power: 'BUFF', color: 'text-yellow-400' };
+      } else if (skill.type === 'buff') {
+          label = 'BUFF';
+          color = 'text-yellow-400';
       }
 
-      return { power: `${label} ~${val}`, color };
+      return { val, label, color };
   };
 
   // --- COMPACT INTELLIGENT LAYOUT RENDER ---
@@ -268,6 +280,9 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
       }
 
       if (menuState === 'TARGETING') {
+          const name = selectedItem ? selectedItem.name : selectedSkill?.name;
+          const isEnemyTarget = selectedSkill?.targetType === 'enemy';
+          
           return (
               <div className="w-full h-full flex flex-col border-2 border-blue-500 bg-blue-950/20 p-2 animate-pulse relative overflow-hidden">
                   <div className="absolute inset-0 bg-blue-500/5 animate-[pulse_0.5s_infinite]" />
@@ -275,16 +290,60 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
                       <div className="text-center font-black text-blue-300 uppercase tracking-widest text-lg mb-1 drop-shadow-md">SELECT TARGET</div>
                       
                       <div className="bg-black/50 border border-blue-800 p-2 mb-2 text-center">
-                          <div className="text-[10px] text-blue-400 uppercase font-bold">CASTING</div>
-                          <div className="text-white font-black text-sm uppercase">{selectedSkill?.name}</div>
+                          <div className="text-[10px] text-blue-400 uppercase font-bold">{selectedItem ? 'USING ITEM' : 'CASTING'}</div>
+                          <div className="text-white font-black text-sm uppercase">{name}</div>
                       </div>
 
                       <div className="text-center text-xs text-white font-bold bg-blue-900/40 p-1 rounded mb-4">
-                          {selectedSkill?.targetType === 'enemy' ? '>>> CHOOSE ENEMY <<<' : '>>> CHOOSE ALLY <<<'}
+                          {isEnemyTarget ? '>>> CHOOSE ENEMY <<<' : '>>> CHOOSE ALLY <<<'}
                       </div>
                       <div className="mt-auto">
-                          <button onClick={() => setMenuState('SKILLS')} className="w-full py-3 border-2 border-red-500 bg-red-950/40 text-red-300 hover:bg-red-900 hover:text-white text-sm font-black uppercase tracking-wider transition-colors">CANCEL CAST</button>
+                          <button onClick={() => setMenuState(selectedItem ? 'ITEMS' : 'SKILLS')} className="w-full py-3 border-2 border-red-500 bg-red-950/40 text-red-300 hover:bg-red-900 hover:text-white text-sm font-black uppercase tracking-wider transition-colors">CANCEL</button>
                       </div>
+                  </div>
+              </div>
+          );
+      }
+
+      if (menuState === 'ITEMS') {
+          // Group inventory by ID to show counts
+          const grouped = new Map<string, { item: Item, count: number }>();
+          inventory.forEach(item => {
+              if (item.type === 'consumable') {
+                  const existing = grouped.get(item.id);
+                  if (existing) existing.count++;
+                  else grouped.set(item.id, { item, count: 1 });
+              }
+          });
+          const consumables = Array.from(grouped.values());
+
+          return (
+              <div className="w-full h-full flex flex-col border-2 border-emerald-900 bg-black relative">
+                  <div className="flex justify-between items-center bg-emerald-950/50 p-2 border-b border-emerald-800 shrink-0">
+                      <button onClick={() => setMenuState('MAIN')} className="text-xs font-black text-red-500 hover:text-white uppercase flex items-center gap-1">
+                          <span>◀</span> BACK
+                      </button>
+                      <span className="text-[9px] text-emerald-500 font-bold uppercase tracking-wider">SUPPLIES</span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-1 space-y-1">
+                      {consumables.length > 0 ? consumables.map(({item, count}) => (
+                          <button 
+                            key={item.id}
+                            onClick={() => initItemTargeting(item)}
+                            className="w-full flex justify-between items-center p-2 border border-emerald-900/50 bg-emerald-950/20 hover:bg-emerald-900/40 transition-all text-left"
+                          >
+                              <div className="flex items-center gap-2">
+                                  <span className="text-lg">🧪</span>
+                                  <div className="flex flex-col">
+                                      <span className="text-xs font-bold text-emerald-300 uppercase">{item.name}</span>
+                                      <span className="text-[8px] text-emerald-600">{item.description}</span>
+                                  </div>
+                              </div>
+                              <span className="font-mono font-bold text-white text-sm">x{count}</span>
+                          </button>
+                      )) : (
+                          <div className="text-center text-emerald-900 py-4 uppercase font-bold text-xs">No Consumables</div>
+                      )}
                   </div>
               </div>
           );
@@ -292,74 +351,90 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
 
       if (menuState === 'SKILLS') {
           const displaySkill = hoveredSkill || activeChar.skills.find(s => (activeChar.skillLevels[s.id]||0) > 0);
+          const skillInfo = displaySkill ? getSkillInfo(displaySkill) : null;
           
           return (
               <div className="w-full h-full flex flex-col border-2 border-cyan-900 bg-black relative">
                   {/* Header */}
-                  <div className="flex justify-between items-center bg-cyan-950/50 p-1.5 px-3 border-b border-cyan-800">
-                      <span className="text-xs font-black uppercase text-cyan-400 tracking-wider">SKILL COMMAND</span>
-                      <span className="text-[10px] font-bold text-blue-300 bg-blue-950/50 px-2 py-0.5 rounded border border-blue-900">{activeChar.mp} MP</span>
+                  <div className="flex justify-between items-center bg-cyan-950/50 p-2 border-b border-cyan-800 shrink-0">
+                      <button onClick={() => setMenuState('MAIN')} className="text-xs font-black text-red-500 hover:text-white uppercase flex items-center gap-1">
+                          <span>◀</span> BACK
+                      </button>
+                      <div className="flex flex-col items-end">
+                          <span className="text-[9px] text-cyan-700 font-bold uppercase tracking-wider">MANA</span>
+                          <span className="text-sm font-bold text-blue-300 leading-none">{activeChar.mp} MP</span>
+                      </div>
                   </div>
 
-                  {/* Split View: List & Detail */}
-                  <div className="flex-1 flex flex-col min-h-0">
-                      {/* List */}
-                      <div className="flex-1 overflow-y-auto custom-scrollbar p-1 space-y-1">
-                          {activeChar.skills.map(skill => {
-                              const level = activeChar.skillLevels[skill.id] || 0;
-                              if (level === 0) return null;
-                              const canAfford = activeChar.mp >= skill.cost;
-                              return (
-                                  <button 
-                                    key={skill.id}
-                                    disabled={!canAfford}
-                                    onMouseEnter={() => setHoveredSkill(skill)}
-                                    onClick={() => initSkillTargeting(skill)}
-                                    className={`w-full flex justify-between items-center p-2 border transition-all text-left group relative
-                                        ${canAfford ? 'border-cyan-900/40 hover:border-cyan-500 hover:bg-cyan-950/30' : 'border-gray-900 bg-gray-950/20 opacity-50 cursor-not-allowed'}
-                                        ${hoveredSkill?.id === skill.id ? 'bg-cyan-900/20 border-cyan-600' : ''}
-                                    `}
-                                  >
-                                      <div className="flex items-center gap-2">
-                                          <span className="text-[10px] w-4 text-center">{skill.type === 'attack' ? '⚔️' : skill.type === 'heal' ? '✚' : '✨'}</span>
-                                          <span className={`font-bold text-xs uppercase ${canAfford ? 'text-cyan-100' : 'text-gray-500'}`}>{skill.name}</span>
+                  {/* List (Scrollable) */}
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-1 space-y-1">
+                      {activeChar.skills.map(skill => {
+                          const level = activeChar.skillLevels[skill.id] || 0;
+                          if (level === 0 || skill.type === 'passive') return null;
+                          const canAfford = activeChar.mp >= skill.cost;
+                          const isHovered = hoveredSkill?.id === skill.id;
+                          
+                          return (
+                              <button 
+                                key={skill.id}
+                                disabled={!canAfford}
+                                onMouseEnter={() => setHoveredSkill(skill)}
+                                onClick={() => initSkillTargeting(skill)}
+                                className={`w-full flex justify-between items-center p-2 border transition-all text-left group relative
+                                    ${canAfford ? 'hover:bg-cyan-900/30' : 'bg-gray-950/40 opacity-50 cursor-not-allowed border-gray-900'}
+                                    ${isHovered ? 'border-cyan-400 bg-cyan-950/20 z-10' : 'border-cyan-900/30'}
+                                `}
+                              >
+                                  <div className="flex items-center gap-2">
+                                      <div className={`w-5 h-5 flex items-center justify-center rounded-sm text-[10px] ${skill.type === 'attack' ? 'bg-red-900/50 text-red-200' : skill.type === 'heal' ? 'bg-green-900/50 text-green-200' : 'bg-yellow-900/50 text-yellow-200'}`}>
+                                          {skill.type === 'attack' ? '⚔️' : skill.type === 'heal' ? '✚' : '✨'}
                                       </div>
-                                      <span className={`text-[10px] font-mono font-bold ${canAfford ? 'text-blue-400' : 'text-red-900'}`}>{skill.cost} MP</span>
-                                  </button>
-                              );
-                          })}
-                      </div>
-
-                      {/* Detail Pane (Fixed at Bottom of Skill Menu) */}
-                      <div className="h-24 shrink-0 bg-cyan-950/20 border-t-2 border-cyan-800 p-2 flex flex-col justify-between">
-                          {displaySkill ? (
-                              <>
-                                <div className="flex justify-between items-start mb-1">
-                                    <span className="text-cyan-300 font-black text-xs uppercase">{displaySkill.name}</span>
-                                    <span className="text-[9px] text-cyan-600 uppercase font-bold tracking-wider">{displaySkill.type}</span>
-                                </div>
-                                <p className="text-[9px] text-cyan-500/80 italic leading-tight mb-1 h-8 overflow-hidden">
-                                    "{displaySkill.desc}"
-                                </p>
-                                <div className="flex gap-2 text-[10px] font-mono border-t border-cyan-900/50 pt-1 mt-auto">
-                                    {(() => {
-                                        const info = getSkillInfo(displaySkill);
-                                        return <span className={`font-bold ${info.color}`}>{info.power}</span>;
-                                    })()}
-                                    <span className="text-gray-500">|</span>
-                                    <span className="text-blue-400 font-bold">COST: {displaySkill.cost}</span>
-                                </div>
-                              </>
-                          ) : (
-                              <div className="text-center text-[10px] text-cyan-900 py-4">SELECT A SKILL</div>
-                          )}
-                      </div>
+                                      <span className={`font-bold text-xs uppercase ${canAfford ? 'text-cyan-100' : 'text-gray-500'}`}>{skill.name}</span>
+                                  </div>
+                                  <div className={`px-1.5 py-0.5 text-[9px] font-mono font-bold rounded ${canAfford ? 'bg-blue-950/50 text-blue-300 border border-blue-900' : 'text-red-900'}`}>
+                                      {skill.cost} MP
+                                  </div>
+                              </button>
+                          );
+                      })}
                   </div>
 
-                  {/* Back Button */}
-                  <button onClick={() => setMenuState('MAIN')} className="p-2 border-t-2 border-red-900/50 bg-black text-xs font-black text-red-500 hover:bg-red-950/30 uppercase text-center hover:text-red-400 transition-colors">
-                      ◀ BACK TO COMMANDS
-                  </button>
+                  {/* Detail Pane (Fixed at Bottom, High Readability) */}
+                  <div className="h-28 shrink-0 bg-cyan-950/20 border-t-2 border-cyan-800 p-2 flex flex-col gap-2">
+                      {displaySkill && skillInfo ? (
+                          <>
+                            <div className="flex-1">
+                                <div className="text-[10px] text-cyan-300 font-bold uppercase mb-1 flex justify-between">
+                                    <span>{displaySkill.name}</span>
+                                    <span className="opacity-50">{displaySkill.targetType}</span>
+                                </div>
+                                <p className="text-[9px] text-cyan-500/90 leading-tight italic h-8 overflow-hidden">
+                                    {displaySkill.desc}
+                                </p>
+                            </div>
+                            
+                            {/* Stats Grid */}
+                            <div className="grid grid-cols-2 gap-2 h-10">
+                                <div className={`flex flex-col items-center justify-center border border-dashed border-opacity-30 bg-black/40 ${skillInfo.color.replace('text-', 'border-')}`}>
+                                    <span className="text-[8px] uppercase opacity-70 font-bold">{skillInfo.label}</span>
+                                    <span className={`text-lg font-black ${skillInfo.color}`}>
+                                        {skillInfo.label === 'BUFF' ? 'EFFECT' : `~${skillInfo.val}`}
+                                    </span>
+                                </div>
+                                <div className="flex flex-col items-center justify-center border border-dashed border-blue-500/30 bg-black/40">
+                                    <span className="text-[8px] uppercase text-blue-400/70 font-bold">COST</span>
+                                    <span className={`text-lg font-black ${activeChar.mp >= displaySkill.cost ? 'text-blue-300' : 'text-red-500'}`}>
+                                        {displaySkill.cost}
+                                    </span>
+                                </div>
+                            </div>
+                          </>
+                      ) : (
+                          <div className="h-full flex items-center justify-center text-[10px] text-cyan-900 uppercase tracking-widest">
+                              Select Ability
+                          </div>
+                      )}
+                  </div>
               </div>
           );
       }
@@ -393,11 +468,11 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
                   </button>
                   
                   <button 
-                    onClick={onDefend} 
+                    onClick={() => setMenuState('ITEMS')} 
                     className="retro-button border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-black flex flex-col items-center justify-center gap-1 transition-all active:scale-95 group"
                   >
-                      <span className="text-2xl group-hover:scale-110 transition-transform">🛡️</span>
-                      <span className="text-xs md:text-sm tracking-widest">DEFEND</span>
+                      <span className="text-2xl group-hover:scale-110 transition-transform">🧪</span>
+                      <span className="text-xs md:text-sm tracking-widest">ITEM</span>
                   </button>
                   
                   <button 
@@ -509,7 +584,10 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
                     const atb = atbValues[p.id] || 0;
                     const isImpact = impactIds.includes(p.id);
                     const animatedAvatar = animatedPartyAvatars[i];
-                    const isTargetingAlly = menuState === 'TARGETING' && (selectedSkill?.targetType === 'ally' || selectedSkill?.targetType === 'self');
+                    const isTargetingAlly = menuState === 'TARGETING' && (
+                        (selectedSkill && (selectedSkill.targetType === 'ally' || selectedSkill.targetType === 'self')) ||
+                        selectedItem
+                    );
 
                     return (
                        <div 

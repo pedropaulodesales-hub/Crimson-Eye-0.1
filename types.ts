@@ -33,7 +33,7 @@ export type ItemType = 'weapon' | 'helm' | 'chest' | 'gloves' | 'boots' | 'acces
 export type ItemRarity = 'NORMAL' | 'UNCOMMON' | 'MAGIC' | 'RARE' | 'LEGENDARY' | 'UNIQUE';
 
 export interface ItemMod {
-  stat: 'str' | 'int' | 'dex' | 'vit' | 'cha' | 'atk' | 'def' | 'mAtk' | 'mDef' | 'hp' | 'mp';
+  stat: 'str' | 'int' | 'dex' | 'vit' | 'cha' | 'atk' | 'def' | 'mAtk' | 'mDef' | 'hp' | 'mp' | 'critChance';
   value: number;
   name: string;
 }
@@ -121,7 +121,7 @@ export interface Enemy extends Entity {
   stolenFrom?: boolean;
 }
 
-export type GameState = 'TITLE' | 'LORE' | 'CREATION' | 'EXPLORE' | 'COMBAT' | 'DEATH' | 'INVENTORY' | 'MERCHANT' | 'SKILLS';
+export type GameState = 'TITLE' | 'LORE' | 'CREATION' | 'EXPLORE' | 'COMBAT' | 'DEATH' | 'INVENTORY' | 'MERCHANT' | 'SKILLS' | 'VICTORY';
 
 export interface LogMessage {
   text: string;

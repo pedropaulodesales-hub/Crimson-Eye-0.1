@@ -82,8 +82,15 @@ const GameContent: React.FC = () => {
   const [isFloorTransition, setIsFloorTransition] = useState(false);
   const [isDescending, setIsDescending] = useState(false);
 
-  // Inventory State
-  const [sharedInventory, setSharedInventory] = useState<Item[]>([]);
+  // UI States
+  const [isMapExpanded, setIsMapExpanded] = useState(false);
+
+  // Inventory State - Initialize with Potions so ITEM button works
+  const [sharedInventory, setSharedInventory] = useState<Item[]>([
+      {...ITEMS.find(i => i.id === 'pot_hp_s')!, id: 'start_pot_1'},
+      {...ITEMS.find(i => i.id === 'pot_hp_s')!, id: 'start_pot_2'},
+      {...ITEMS.find(i => i.id === 'pot_hp_s')!, id: 'start_pot_3'}
+  ]);
   const [materialsPouch, setMaterialsPouch] = useState<Item[]>([]);
   const [selectedInventoryChar, setSelectedInventoryChar] = useState(0);
 
@@ -183,7 +190,6 @@ const GameContent: React.FC = () => {
   const calculateDerivedStats = (ent: Player | Enemy | any): DerivedStats => {
     const equipped = [ent.weapon, ent.helm, ent.chest, ent.gloves, ent.boots, ent.accessory].filter(Boolean) as Item[];
     
-    // Accumulate passive bonuses automatically based on Skill data
     const passiveBonuses: Record<string, number> = {
         str: 0, int: 0, dex: 0, vit: 0, cha: 0,
         hp: 0, mp: 0, atk: 0, def: 0, mAtk: 0, mDef: 0, 
@@ -199,7 +205,7 @@ const GameContent: React.FC = () => {
       });
     }
 
-    const modValues: Record<string, number> = { str: 0, int: 0, dex: 0, vit: 0, cha: 0, atk: 0, def: 0, mAtk: 0, mDef: 0, hp: 0, mp: 0 };
+    const modValues: Record<string, number> = { str: 0, int: 0, dex: 0, vit: 0, cha: 0, atk: 0, def: 0, mAtk: 0, mDef: 0, hp: 0, mp: 0, critChance: 0 };
     equipped.forEach(item => { item.mods?.forEach(mod => { modValues[mod.stat] = (modValues[mod.stat] || 0) + mod.value; }); });
     
     const buffValues: Record<string, number> = { str: 0, int: 0, dex: 0, vit: 0, atk: 0, def: 0, mAtk: 0, mDef: 0, acc: 0, eva: 0, critChance: 0, maxHp: 0 };
@@ -228,7 +234,7 @@ const GameContent: React.FC = () => {
     
     const acc = Math.min(99, Math.floor(85 + (effectiveDex * 0.5) + passiveBonuses.acc + buffValues.acc));
     const eva = Math.min(75, Math.floor(effectiveDex * 0.8) + passiveBonuses.eva + buffValues.eva);
-    const critChance = Math.min(80, Math.floor(effectiveDex * 0.5) + passiveBonuses.critChance + (buffValues.critChance || 0));
+    const critChance = Math.min(80, Math.floor(effectiveDex * 0.5) + passiveBonuses.critChance + (buffValues.critChance || 0) + (modValues.critChance || 0));
     const critDamage = 150 + (effectiveStr * 2) + passiveBonuses.critDamage;
 
     const baseMaxHp = ent.maxHp ?? ent.hp; 
@@ -324,8 +330,6 @@ const GameContent: React.FC = () => {
       } 
   };
 
-  // ... (keeping applyDotEffects, handleTurn, executeEnemyTurn, resetAtb, spawnEnemies, move, turn, checkSquare, generateMerchantStock, handleAttack, handleDefend, handleSkill, handleVictory, handleEquip, handleUnequip, handleUseItem as is, just need to update where handleUpgradeSkill is)
-
   const applyDotEffects = (entity: Player | Enemy): { newHp: number, isDead: boolean, activeBuffs: Buff[] } => {
       let newHp = entity.hp;
       let tookDamage = false;
@@ -417,66 +421,114 @@ const GameContent: React.FC = () => {
     if (alivePartyIndices.length === 0) { setGameState('DEATH'); return; }
     
     const enemyStats = calculateDerivedStats(enemy);
-    const partyStats = partyRef.current.map(p => calculateDerivedStats(p));
-    
-    const lowestHpIdx = alivePartyIndices.reduce((acc, curr) => 
-      (partyRef.current[curr].hp / partyStats[curr].maxHp < partyRef.current[acc].hp / partyStats[acc].maxHp) ? curr : acc, alivePartyIndices[0]);
-    
+    // Simple AI: Random target
     let targetIdx = alivePartyIndices[Math.floor(Math.random() * alivePartyIndices.length)];
-    if (Math.random() < 0.4) targetIdx = lowestHpIdx;
-
     const target = partyRef.current[targetIdx];
-    const targetStats = partyStats[targetIdx];
-    const isDefending = target.buffs.some(b => b.id.startsWith('posture_'));
+    const targetStats = calculateDerivedStats(target);
 
-    setAtbValues(prev => ({ ...prev, [enemyId]: 0 }));
-    
-    setCurrentAnim('physical');
+    // Damage Calculation
+    const damage = Math.max(1, Math.floor((enemyStats.atk - targetStats.def * 0.5) * (0.8 + Math.random() * 0.4)));
+    const isCrit = Math.random() * 100 < enemyStats.critChance;
+    const finalDamage = isCrit ? Math.floor(damage * (enemyStats.critDamage / 100)) : damage;
+    const hit = Math.random() * 100 < (75 + enemyStats.acc - targetStats.eva);
+
     setImpactIds([target.id]);
-    setTimeout(() => setImpactIds([]), 400);
-
-    if (Math.random() * 100 < targetStats.eva) {
-      addLog(`💨 MISS! ${target.class} dodged ${enemy.name}'s strike!`, 'miss');
-      spawnFloatingText(target.id, "MISS", "miss");
-      sounds.playEffect('miss');
-    } else {
-      let dmg = Math.max(1, (enemyStats.atk || (enemy.str * 2)) - Math.floor(targetStats.def * 0.5));
-      
-      const isEnemyCrit = Math.random() < 0.05;
-      if (isEnemyCrit) {
-        dmg = Math.floor(dmg * 1.5);
-        addLog(`👹 CRITICAL! ${enemy.name} brutally rends ${target.class} for ${dmg} damage!`, 'enemy_action');
-      } else {
-        addLog(`👹 ${enemy.name} strikes ${target.class} for ${dmg} damage!`, 'enemy_action');
-      }
-      
-      if (isDefending) {
-          dmg = Math.floor(dmg * 0.5);
-          addLog("🛡️ Attack blocked!", 'info');
-          spawnFloatingText(target.id, "BLOCK", "block");
-          setTimeout(() => {
-             spawnFloatingText(target.id, `-${dmg}`, "damage");
-          }, 300);
-      } else {
-          spawnFloatingText(target.id, `-${dmg}`, isEnemyCrit ? "crit" : "damage");
-      }
-
-      setParty(prev => {
-        const next = [...prev];
-        if (next[targetIdx]) {
-            next[targetIdx] = { ...next[targetIdx], hp: Math.max(0, next[targetIdx].hp - dmg) };
-        }
-        return next;
-      });
-      
-      sounds.playEffect('hit');
-      if (target.hp - dmg <= 0) addLog(`💀 ${target.class} has fallen!`, 'combat');
-    }
+    setCurrentAnim('physical');
+    sounds.playEffect('attack');
     
     setTimeout(() => {
-        setActingId(null);
-        startAtbClock();
-    }, 600);
+        if (hit) {
+            spawnFloatingText(target.id, isCrit ? `${finalDamage}!` : `${finalDamage}`, isCrit ? 'crit' : 'damage');
+            addLog(`${enemy.name} attacks ${target.class} for ${finalDamage} damage.`, 'damage');
+            if (isCrit) sounds.playEffect('crit');
+
+            setParty(prev => prev.map((p, i) => {
+                if (i !== targetIdx) return p;
+                const newHp = Math.max(0, p.hp - finalDamage);
+                return { ...p, hp: newHp };
+            }));
+
+            if (target.hp - finalDamage <= 0) {
+                // Check wipe
+                const stillAlive = partyRef.current.filter((p, i) => i !== targetIdx && p.hp > 0).length;
+                if (stillAlive === 0) setGameState('DEATH');
+            }
+        } else {
+            spawnFloatingText(target.id, "MISS", 'miss');
+            addLog(`${enemy.name} missed ${target.class}.`, 'miss');
+            sounds.playEffect('miss');
+        }
+        
+        setTimeout(() => {
+            setImpactIds([]);
+            setActingId(null);
+            setAtbValues(prev => ({ ...prev, [enemyId]: 0 }));
+            startAtbClock();
+        }, 500);
+    }, 300);
+  };
+
+  const handleVictory = (finalEnemies: Enemy[]) => {
+    stopAtbClock();
+    sounds.playEffect('victory');
+    
+    // Calculate rewards
+    let totalXp = 0;
+    let totalGold = 0;
+    const drops: Item[] = [];
+
+    finalEnemies.forEach(e => {
+        totalXp += e.xpValue;
+        totalGold += e.goldValue;
+        
+        // Drop logic
+        if (Math.random() < 0.2) { // 20% drop rate
+            const baseItem = Math.random() < 0.3 
+                ? MATERIALS[Math.floor(Math.random() * MATERIALS.length)]
+                : ITEMS[Math.floor(Math.random() * ITEMS.length)];
+            
+            drops.push(generateRandomItem(baseItem, currentFloor + 1));
+        }
+    });
+
+    // Apply to party
+    setParty(prev => prev.map(p => {
+        if (p.hp <= 0) return p; // Dead get no XP
+        let newXp = p.xp + totalXp;
+        let newLevel = p.level;
+        let skillPoints = p.skillPoints;
+        
+        // Simple level up formula: 100 * level
+        const nextLevelXp = newLevel * 100;
+        if (newXp >= nextLevelXp) {
+            newXp -= nextLevelXp;
+            newLevel++;
+            skillPoints++;
+            addLog(`${p.class} reached Level ${newLevel}!`, 'level');
+        }
+        return { ...p, xp: newXp, level: newLevel, skillPoints };
+    }));
+
+    setGold(g => g + totalGold);
+    setSharedInventory(inv => [...inv, ...drops]);
+
+    // Logs
+    addLog(`Victory! Gained ${totalXp} XP and ${totalGold} Gold.`, 'loot');
+    if (drops.length > 0) {
+        addLog(`Found ${drops.length} items.`, 'loot');
+    }
+
+    setGameState('VICTORY');
+    setIsVictoryTransition(true);
+
+    // Transition back to Explore
+    setTimeout(() => {
+        setIsVictoryTransition(false);
+        setGameState('EXPLORE');
+        sounds.playMusic(currentFloor);
+        setActiveEnemies([]);
+        setAtbValues({});
+    }, 3000);
   };
 
   const resetAtb = (id: string) => { 
@@ -486,171 +538,12 @@ const GameContent: React.FC = () => {
       startAtbClock(); 
   };
 
-  const spawnEnemies = () => {
-    const enemyCount = Math.floor(Math.random() * 2) + 2;
-    // Fix: strictly only Level 1 monsters on Floor 1 (index 0)
-    // For other floors, scale normally (floor + 1)
-    const potential = ENEMIES.filter(e => currentFloor === 0 ? e.level === 1 : e.level <= currentFloor + 1);
-    
-    const newEnemies: Enemy[] = [];
-    const newAtb: Record<string, number> = {};
-    for (let i = 0; i < enemyCount; i++) {
-      const template = potential[Math.floor(Math.random() * potential.length)];
-      const instId = `enemy-${Date.now()}-${i}`;
-      newEnemies.push({
-        ...template, 
-        instanceId: instId,
-        hp: template.maxHp,
-        maxHp: template.maxHp,
-        mp: template.maxMp,
-        maxMp: template.maxMp,
-        buffs: []
-      });
-      newAtb[instId] = Math.random() * 30;
-    }
-    party.forEach(p => newAtb[p.id] = Math.random() * 40);
-    setAtbValues(newAtb);
-    setActiveEnemies(newEnemies);
-    addLog(`⚔️ ENCOUNTER! Monsters emerge from the shadows.`, 'combat');
-    
-    // Play Battle Transition instead of direct state switch
-    sounds.playEffect('encounter');
-    setIsBattleTransition(true);
-  };
-
-  const move = useCallback((dirMod: number) => {
-    if (gameState !== 'EXPLORE' || isBattleTransition || isVictoryTransition || showMerchantIntro || showMerchantPrompt || showTravelerDialog) return;
-    const vecs = [{ x: 0, y: -1 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }];
-    const vec = vecs[currentDir];
-    const nx = currentPos.x + vec.x * -dirMod;
-    const ny = currentPos.y + vec.y * -dirMod;
-    if (!dungeonFloors[currentFloor]) return;
-    const currentMap = dungeonFloors[currentFloor];
-    // Allow moving into 0 (Empty), 3 (Stairs), 4 (Chest), 5 (Merchant), 9 (Fake Wall)
-    // 2 (NPC) and 6 (Traveler) might be blocking or interactable based on logic, let's treat them as passable or trigger on step?
-    // Current logic blocks '1'.
-    if (ny < 0 || ny >= currentMap.length || nx < 0 || nx >= currentMap[0].length || currentMap[ny][nx] === 1) return;
-    
-    // Handle Secret Wall Entry
-    if (currentMap[ny][nx] === 9) {
-        const isAlreadyExplored = explored[currentFloor]?.has(`${nx},${ny}`);
-        if (!isAlreadyExplored) {
-            sounds.playEffect('secret');
-            addLog("👁️ You stepped through an illusion!", 'info');
-        } else {
-            sounds.playEffect('move');
-        }
-    } else {
-        sounds.playEffect('move');
-    }
-
-    setCurrentPos({ x: nx, y: ny });
-    checkSquare(nx, ny);
-  }, [gameState, currentDir, currentFloor, currentPos, dungeonFloors, explored, isBattleTransition, isVictoryTransition, showMerchantIntro, showMerchantPrompt, showTravelerDialog]);
-
-  const turn = useCallback((rot: number) => {
-    if (gameState !== 'EXPLORE' || isBattleTransition || isVictoryTransition || showMerchantIntro || showMerchantPrompt || showTravelerDialog) return;
-    sounds.playEffect('turn');
-    setCurrentDir((currentDir + rot + 4) % 4);
-  }, [gameState, currentDir, isBattleTransition, isVictoryTransition, showMerchantIntro, showMerchantPrompt, showTravelerDialog]);
-
-  // Keyboard Controls
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-        if (gameState !== 'EXPLORE') return;
-        
-        switch(e.key) {
-            case 'w':
-            case 'W':
-            case 'ArrowUp':
-                move(-1); // Forward
-                break;
-            case 's':
-            case 'S':
-            case 'ArrowDown':
-                move(1); // Backward
-                break;
-            case 'a':
-            case 'A':
-            case 'ArrowLeft':
-                turn(-1); // Left
-                break;
-            case 'd':
-            case 'D':
-            case 'ArrowRight':
-                turn(1); // Right
-                break;
-        }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gameState, move, turn]);
-
-  const checkSquare = (x: number, y: number) => {
-    if (!dungeonFloors[currentFloor]) return;
-    const currentMap = dungeonFloors[currentFloor];
-    const tile = currentMap[y][x];
-    if (tile === 4) {
-      sounds.playEffect('loot');
-      const baseItem = ITEMS[Math.floor(Math.random() * ITEMS.length)];
-      const rolledItem = generateRandomItem(baseItem, 1 + currentFloor * 0.2);
-      setSharedInventory(prev => [...prev, rolledItem]);
-      const goldRoll = 25 + Math.floor(Math.random() * 25);
-      setGold(g => g + goldRoll);
-      addLog(`💰 Found ${rolledItem.name} and ${goldRoll} gold coins!`, 'loot');
-      const newFloors = [...dungeonFloors];
-      const newMap = [...newFloors[currentFloor]];
-      const newRow = [...newMap[y]];
-      newRow[x] = 0;
-      newMap[y] = newRow;
-      newFloors[currentFloor] = newMap;
-      setDungeonFloors(newFloors);
-    } else if (tile === 3) {
-      sounds.playEffect('stairs');
-      if (currentFloor + 1 >= dungeonFloors.length) {
-          addLog(`🏆 You have conquered the final floor! Returning to surface...`, 'combat');
-          setTimeout(() => setGameState('TITLE'), 3000);
-      } else { 
-          // Trigger visual transition before changing floor data
-          setIsFloorTransition(true);
-      }
-    } else if (tile === 5) {
-      // Check for first meeting on Floor 1 (index 0)
-      if (currentFloor === 0 && !hasMetMerchant) {
-        setShowMerchantIntro(true);
-      } else {
-        setShowMerchantPrompt(true);
-      }
-    } else if (tile === 6) {
-        // Traveler NPC
-        setShowTravelerDialog(true);
-    } else if (Math.random() < 0.18) spawnEnemies(); 
-  };
-
-  const generateMerchantStock = () => {
-    const levels = party.map(p => p.level);
-    levels.sort((a, b) => a - b);
-    const medianLevel = levels[Math.floor(levels.length / 2)];
-    const levelFactor = 1.25 + (medianLevel - 1) * 0.25; 
-    const stock: Item[] = [];
-    const count = 5 + Math.floor(Math.random() * 3);
-    for (let i = 0; i < count; i++) {
-      const base = ITEMS[Math.floor(Math.random() * ITEMS.length)];
-      const item = generateRandomItem(base, levelFactor);
-      stock.push(item);
-    }
-    setMerchantInventory(stock);
-  };
-
-  // ... (keeping existing battle logic)
   const handleAttack = () => {
     if (activeCharIndex === null || actingId) return;
     const attacker = party[activeCharIndex];
     let effectiveTargetIndex = targetIndex;
     let target = activeEnemies[effectiveTargetIndex];
     
-    // --- TARGET REDIRECTION LOGIC (Handle Attack) ---
     if (!target || target.hp <= 0) {
          effectiveTargetIndex = activeEnemies.findIndex(e => e.hp > 0);
          if (effectiveTargetIndex !== -1) {
@@ -658,7 +551,6 @@ const GameContent: React.FC = () => {
              target = activeEnemies[effectiveTargetIndex];
          } else return;
     }
-    // ------------------------------------------------
 
     setActingId(attacker.id);
     setCurrentAnim('physical');
@@ -697,34 +589,57 @@ const GameContent: React.FC = () => {
     }, 400);
   };
 
-  const handleDefend = () => {
+  const handleCombatUseItem = (item: Item, targetIdx: number) => {
     if (activeCharIndex === null || actingId) return;
-    const defender = party[activeCharIndex];
-    setActingId(defender.id);
-    const defBuff: Buff = { id: 'posture_def', name: 'Defending', type: 'buff', stat: 'def', value: 50, duration: 1 };
-    const mDefBuff: Buff = { id: 'posture_mdef', name: 'Defending', type: 'buff', stat: 'mDef', value: 50, duration: 1 };
-    setCurrentAnim('defend');
-    setImpactIds([defender.id]);
+    const actor = party[activeCharIndex];
+    const target = party[targetIdx];
+    
+    // Remove item
+    setSharedInventory(prev => {
+        const idx = prev.findIndex(i => i.id === item.id);
+        if (idx > -1) {
+            const next = [...prev];
+            next.splice(idx, 1);
+            return next;
+        }
+        return prev;
+    });
+
+    setActingId(actor.id);
+    setCurrentAnim('heal');
+    setImpactIds([target.id]);
+    
     setTimeout(() => setImpactIds([]), 400);
     setTimeout(() => {
+        const stats = calculateDerivedStats(target);
+        const healAmount = item.stat || 0;
+        const mpAmount = item.magicStat || 0; 
+
         setParty(prev => prev.map((p, i) => {
-            if (i === activeCharIndex) {
-                const otherBuffs = p.buffs.filter(b => !b.id.startsWith('posture_'));
-                return { ...p, buffs: [...otherBuffs, defBuff, mDefBuff] };
+            if (i === targetIdx) {
+                let newHp = p.hp;
+                let newMp = p.mp;
+                if (healAmount > 0) newHp = Math.min(stats.maxHp, p.hp + healAmount);
+                if (mpAmount > 0) newMp = Math.min(stats.maxMp, p.mp + mpAmount);
+                return { ...p, hp: newHp, mp: newMp };
             }
             return p;
         }));
-        sounds.playEffect('skill');
-        addLog(`🛡️ ${defender.class} adopts a defensive stance.`, 'player_action');
-        spawnFloatingText(defender.id, "DEFEND", "block");
-        resetAtb(defender.id);
+
+        sounds.playEffect('heal');
+        addLog(`🧪 ${actor.class} uses ${item.name} on ${target.class}.`, 'heal');
+        
+        if (healAmount > 0) spawnFloatingText(target.id, `+${healAmount}`, "heal");
+        if (mpAmount > 0) spawnFloatingText(target.id, `+${mpAmount} MP`, "heal");
+
+        setActingId(null);
+        resetAtb(actor.id);
     }, 400);
   };
 
   const handleSkill = (skill: Skill, explicitTargetIndex?: number) => {
     if (activeCharIndex === null || actingId) return;
     
-    // --- TARGET REDIRECTION LOGIC (Handle Skill) ---
     let effectiveTargetIndex = targetIndex;
     if (skill.targetType === 'enemy' && !skill.isAoe) {
         if (explicitTargetIndex !== undefined) {
@@ -742,15 +657,11 @@ const GameContent: React.FC = () => {
             }
         }
     }
-    // ----------------------------------------------
 
     const attacker = party[activeCharIndex];
     const stats = calculateDerivedStats(attacker);
     const skillLevel = attacker.skillLevels[skill.id] || 0; 
-    if (skillLevel <= 0) {
-      addLog(`${attacker.class} has not learned ${skill.name} yet!`, 'miss');
-      return;
-    }
+    
     setActingId(attacker.id);
     const levelPowerMult = 1 + (skillLevel - 1) * 0.2;
     sounds.playEffect('skill');
@@ -779,9 +690,7 @@ const GameContent: React.FC = () => {
                 let dmg = 0;
                 
                 if (skill.id === 'r_gold') {
-                    dmg = 5 + Math.floor(stats.effectiveDex * 0.5); // Minor damage
-                    
-                    // --- STEAL MECHANIC ---
+                    dmg = 5 + Math.floor(stats.effectiveDex * 0.5); 
                     if (!oldTarget.stolenFrom) {
                         const stealChance = 25 + (stats.effectiveDex * 2);
                         const roll = Math.random() * 100;
@@ -790,7 +699,6 @@ const GameContent: React.FC = () => {
                              const item = generateRandomItem(baseItem, 1 + currentFloor * 0.2);
                              setSharedInventory(prev => [...prev, item]);
                              newEnemies[targetIdx] = { ...newEnemies[targetIdx], stolenFrom: true };
-                             
                              addLog(`🖐️ ${attacker.class} stole ${item.name} from ${oldTarget.name}!`, 'loot');
                              spawnFloatingText(tid, "ITEM STOLEN!", "crit");
                              sounds.playEffect('loot');
@@ -802,11 +710,9 @@ const GameContent: React.FC = () => {
                         addLog(`${oldTarget.name} has empty pockets.`, 'miss');
                         spawnFloatingText(tid, "EMPTY", "miss");
                     }
-
                     const goldStolen = 10 * skillLevel + Math.floor(Math.random() * 10);
                     setGold(g => g + goldStolen);
                     spawnFloatingText(attacker.id, `+${goldStolen}G`, "loot");
-                    // ----------------------
 
                 } else if (skill.id === 'b_blood') {
                     dmg = Math.floor(stats.atk * power);
@@ -843,25 +749,19 @@ const GameContent: React.FC = () => {
                 if (!targetIds.includes(p.id)) return p;
                 const pStats = calculateDerivedStats(p);
                 
-                // REVIVE LOGIC CHECK
                 if ((skill as any).revive) {
-                    if (p.hp > 0) return p; // Can't revive living
-                    const healAmt = Math.floor(pStats.maxHp * 0.3); // 30% HP revive
+                    if (p.hp > 0) return p;
+                    const healAmt = Math.floor(pStats.maxHp * 0.3);
                     spawnFloatingText(p.id, `REVIVE`, "heal");
-                    return { ...p, hp: healAmt, buffs: [] }; // Reset buffs on revive
+                    return { ...p, hp: healAmt, buffs: [] }; 
                 }
 
-                if (p.hp <= 0) return p; // Normal heals don't work on dead
+                if (p.hp <= 0) return p;
 
-                if (skill.type === 'heal' || skill.id === 'm_surge') {
-                    if (skill.id === 'm_surge') {
-                        spawnFloatingText(p.id, `+${15 * skillLevel} MP`, "heal");
-                        return { ...p, mp: Math.min(pStats.maxMp, p.mp + (15 * skillLevel)) };
-                    } else {
-                        const healAmt = Math.floor((skill.type === 'heal' ? attacker.int * 1.5 : 0) * levelPowerMult);
-                        spawnFloatingText(p.id, `+${healAmt}`, "heal");
-                        return { ...p, hp: Math.min(pStats.maxHp, p.hp + healAmt) };
-                    }
+                if (skill.type === 'heal') {
+                    const healAmt = Math.floor((skill.type === 'heal' ? attacker.int * 1.5 : 0) * levelPowerMult);
+                    spawnFloatingText(p.id, `+${healAmt}`, "heal");
+                    return { ...p, hp: Math.min(pStats.maxHp, p.hp + healAmt) };
                 } else if (skill.type === 'buff') {
                     let newBuffs = [...p.buffs];
                     let buffsToAdd: Buff[] = [];
@@ -896,14 +796,12 @@ const GameContent: React.FC = () => {
       const powerMult = 1 + (level - 1) * 0.2;
       const targetStats = calculateDerivedStats(target);
 
-      // Check MP
       if (caster.mp < skill.cost) {
           addLog(`${caster.class} doesn't have enough MP!`, 'miss');
           sounds.playEffect('miss');
           return;
       }
 
-      // Check Revive condition
       if ((skill as any).revive) {
           if (target.hp > 0) {
               addLog(`${target.class} is already alive!`, 'miss');
@@ -914,7 +812,6 @@ const GameContent: React.FC = () => {
           return;
       }
 
-      // Apply Effect
       setParty(prev => {
           const next = [...prev];
           const c = next[casterIndex];
@@ -924,7 +821,7 @@ const GameContent: React.FC = () => {
           if ((skill as any).revive) {
               const healAmt = Math.floor(targetStats.maxHp * 0.3);
               t.hp = healAmt;
-              t.buffs = []; // Clear death state/buffs
+              t.buffs = []; 
               addLog(`${caster.class} revives ${target.class}!`, 'heal');
               sounds.playEffect('heal');
           } else if (skill.type === 'heal') {
@@ -932,77 +829,12 @@ const GameContent: React.FC = () => {
               t.hp = Math.min(targetStats.maxHp, t.hp + healAmt);
               addLog(`${caster.class} heals ${target.class} for ${healAmt} HP.`, 'heal');
               sounds.playEffect('heal');
-          } else if (skill.id === 'm_surge') {
-              const mpAmt = Math.floor(15 * level);
-              t.mp = Math.min(targetStats.maxMp, t.mp + mpAmt);
-              addLog(`${caster.class} restores ${mpAmt} MP to ${target.class}.`, 'heal');
-              sounds.playEffect('heal');
           } else {
               addLog(`${caster.class} casts ${skill.name} on ${target.class}.`, 'player_action');
               sounds.playEffect('skill');
           }
           return next;
       });
-  };
-
-  const handleVictory = (finalEnemies: Enemy[]) => {
-    stopAtbClock();
-    setIsVictoryTransition(true);
-    sounds.playEffect('victory');
-    const totalXp = finalEnemies.reduce((sum, e) => sum + e.xpValue, 0);
-    let totalGold = finalEnemies.reduce((sum, e) => sum + e.goldValue, 0);
-    const droppedItems: Item[] = [];
-    const droppedMaterials: Item[] = [];
-    finalEnemies.forEach(e => {
-      if (Math.random() < 0.3) { 
-        const mat = MATERIALS[Math.floor(Math.random() * MATERIALS.length)];
-        droppedMaterials.push({ ...mat, rarity: 'NORMAL' });
-      }
-      if (Math.random() < 0.15) { 
-        const baseItem = ITEMS[Math.floor(Math.random() * ITEMS.length)];
-        droppedItems.push(generateRandomItem(baseItem, 1 + currentFloor * 0.2));
-      }
-      totalGold += Math.floor(Math.random() * 8);
-    });
-    setGold(g => g + totalGold);
-    setSharedInventory(prev => [...prev, ...droppedItems]);
-    setMaterialsPouch(prev => [...prev, ...droppedMaterials]);
-    setParty(p => p.map(m => {
-        const nextXp = m.xp + Math.floor(totalXp / 3);
-        const xpToLevel = m.level * 150; 
-        let leveledUp = false;
-        let curXp = nextXp;
-        let nextLevel = m.level;
-        let skillPoints = m.skillPoints;
-        if (curXp >= xpToLevel) { 
-          leveledUp = true;
-          nextLevel++; 
-          curXp -= xpToLevel; 
-          skillPoints += 1; 
-          addLog(`🎊 LEVEL UP! ${m.class} reached level ${nextLevel}! +1 Skill Point.`, 'level'); 
-        }
-        const nextMaxHp = m.maxHp + (leveledUp ? 8 : 0); 
-        return { 
-            ...m, 
-            xp: curXp, 
-            level: nextLevel, 
-            skillPoints: skillPoints,
-            maxHp: nextMaxHp,
-            hp: Math.min(nextMaxHp, m.hp + 2), 
-            str: m.str + (leveledUp ? 1 : 0),
-            vit: m.vit + (leveledUp ? 1 : 0),
-            int: m.int + (leveledUp ? 1 : 0),
-            dex: m.dex + (leveledUp ? 1 : 0),
-            buffs: [] 
-        };
-    }));
-    addLog(`🏆 VICTORY! Gathered ${totalGold} gold.`, 'loot');
-    
-    // Quick Transition
-    setTimeout(() => {
-        setIsVictoryTransition(false);
-        setGameState('EXPLORE');
-    }, 1000);
   };
 
   const handleEquip = (item: Item, playerIndex: number) => {
@@ -1117,7 +949,7 @@ const GameContent: React.FC = () => {
       const p = next[playerIndex];
       if (p.skillPoints > 0) {
         const cur = p.skillLevels[skillId] || 0;
-        if (cur < 3) { // MAX LEVEL 3
+        if (cur < 3) { 
           p.skillPoints--;
           p.skillLevels = { ...p.skillLevels, [skillId]: cur + 1 };
           addLog(`✨ ${p.class} upgraded skill!`, 'level');
@@ -1149,8 +981,161 @@ const GameContent: React.FC = () => {
     addLog(`Sold ${item.name} for ${val}G`, 'loot');
   };
 
+  const spawnEnemies = () => {
+    const enemyCount = Math.floor(Math.random() * 2) + 2;
+    const potential = ENEMIES.filter(e => currentFloor === 0 ? e.level === 1 : e.level <= currentFloor + 1);
+    
+    const newEnemies: Enemy[] = [];
+    const newAtb: Record<string, number> = {};
+    for (let i = 0; i < enemyCount; i++) {
+      const template = potential[Math.floor(Math.random() * potential.length)];
+      const instId = `enemy-${Date.now()}-${i}`;
+      newEnemies.push({
+        ...template, 
+        instanceId: instId,
+        hp: template.maxHp,
+        maxHp: template.maxHp,
+        mp: template.maxMp,
+        maxMp: template.maxMp,
+        buffs: []
+      });
+      newAtb[instId] = Math.random() * 30;
+    }
+    party.forEach(p => newAtb[p.id] = Math.random() * 40);
+    setAtbValues(newAtb);
+    setActiveEnemies(newEnemies);
+    addLog(`⚔️ ENCOUNTER! Monsters emerge from the shadows.`, 'combat');
+    
+    sounds.playEffect('encounter');
+    setIsBattleTransition(true);
+  };
+
+  const move = useCallback((dirMod: number) => {
+    if (gameState !== 'EXPLORE' || isBattleTransition || isVictoryTransition || showMerchantIntro || showMerchantPrompt || showTravelerDialog || isMapExpanded) return;
+    const vecs = [{ x: 0, y: -1 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }];
+    const vec = vecs[currentDir];
+    const nx = currentPos.x + vec.x * -dirMod;
+    const ny = currentPos.y + vec.y * -dirMod;
+    if (!dungeonFloors[currentFloor]) return;
+    const currentMap = dungeonFloors[currentFloor];
+    
+    if (ny < 0 || ny >= currentMap.length || nx < 0 || nx >= currentMap[0].length || currentMap[ny][nx] === 1) return;
+    
+    // Handle Secret Wall Entry
+    if (currentMap[ny][nx] === 9) {
+        const isAlreadyExplored = explored[currentFloor]?.has(`${nx},${ny}`);
+        if (!isAlreadyExplored) {
+            sounds.playEffect('secret');
+            addLog("👁️ You stepped through an illusion!", 'info');
+        } else {
+            sounds.playEffect('move');
+        }
+    } else {
+        sounds.playEffect('move');
+    }
+
+    setCurrentPos({ x: nx, y: ny });
+    checkSquare(nx, ny);
+  }, [gameState, currentDir, currentFloor, currentPos, dungeonFloors, explored, isBattleTransition, isVictoryTransition, showMerchantIntro, showMerchantPrompt, showTravelerDialog, isMapExpanded]);
+
+  const turn = useCallback((rot: number) => {
+    if (gameState !== 'EXPLORE' || isBattleTransition || isVictoryTransition || showMerchantIntro || showMerchantPrompt || showTravelerDialog || isMapExpanded) return;
+    sounds.playEffect('turn');
+    setCurrentDir((currentDir + rot + 4) % 4);
+  }, [gameState, currentDir, isBattleTransition, isVictoryTransition, showMerchantIntro, showMerchantPrompt, showTravelerDialog, isMapExpanded]);
+
+  const checkSquare = (x: number, y: number) => {
+    if (!dungeonFloors[currentFloor]) return;
+    const currentMap = dungeonFloors[currentFloor];
+    const tile = currentMap[y][x];
+    if (tile === 4) {
+      sounds.playEffect('loot');
+      const baseItem = ITEMS[Math.floor(Math.random() * ITEMS.length)];
+      const rolledItem = generateRandomItem(baseItem, 1 + currentFloor * 0.2);
+      setSharedInventory(prev => [...prev, rolledItem]);
+      const goldRoll = 25 + Math.floor(Math.random() * 25);
+      setGold(g => g + goldRoll);
+      addLog(`💰 Found ${rolledItem.name} and ${goldRoll} gold coins!`, 'loot');
+      const newFloors = [...dungeonFloors];
+      const newMap = [...newFloors[currentFloor]];
+      const newRow = [...newMap[y]];
+      newRow[x] = 0;
+      newMap[y] = newRow;
+      newFloors[currentFloor] = newMap;
+      setDungeonFloors(newFloors);
+    } else if (tile === 3) {
+      sounds.playEffect('stairs');
+      if (currentFloor + 1 >= dungeonFloors.length) {
+          addLog(`🏆 You have conquered the final floor! Returning to surface...`, 'combat');
+          setTimeout(() => setGameState('TITLE'), 3000);
+      } else { 
+          setIsFloorTransition(true);
+      }
+    } else if (tile === 5) {
+      if (currentFloor === 0 && !hasMetMerchant) {
+        setShowMerchantIntro(true);
+      } else {
+        setShowMerchantPrompt(true);
+      }
+    } else if (tile === 6) {
+        setShowTravelerDialog(true);
+    } else if (Math.random() < 0.18) spawnEnemies(); 
+  };
+
+  const generateMerchantStock = () => {
+    const levels = party.map(p => p.level);
+    levels.sort((a, b) => a - b);
+    const medianLevel = levels[Math.floor(levels.length / 2)];
+    const levelFactor = 1.25 + (medianLevel - 1) * 0.25; 
+    const stock: Item[] = [];
+    const count = 5 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < count; i++) {
+      const base = ITEMS[Math.floor(Math.random() * ITEMS.length)];
+      const item = generateRandomItem(base, levelFactor);
+      stock.push(item);
+    }
+    setMerchantInventory(stock);
+  };
+
+  // Keyboard Controls
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+        if (gameState !== 'EXPLORE') return;
+        
+        switch(e.key) {
+            case 'w':
+            case 'W':
+            case 'ArrowUp':
+                move(-1); // Forward
+                break;
+            case 's':
+            case 'S':
+            case 'ArrowDown':
+                move(1); // Backward
+                break;
+            case 'a':
+            case 'A':
+            case 'ArrowLeft':
+                turn(-1); // Left
+                break;
+            case 'd':
+            case 'D':
+            case 'ArrowRight':
+                turn(1); // Right
+                break;
+            case 'm':
+            case 'M':
+                setIsMapExpanded(prev => !prev);
+                break;
+        }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [gameState, move, turn]);
+
   const renderLogs = (ref?: React.RefObject<HTMLDivElement>) => (
-    <div className="flex-1 overflow-y-auto custom-scrollbar p-2 flex flex-col gap-1 text-[10px] md:text-xs font-mono bg-black/60 h-full">
+    <div className="flex-1 overflow-y-auto custom-scrollbar p-2 flex flex-col gap-1 text-xs md:text-sm font-mono bg-black/60 h-full">
         {logs.map((msg, i) => {
             let color = 'text-emerald-500';
             if (msg.type === 'damage') color = 'text-red-400';
@@ -1162,7 +1147,7 @@ const GameContent: React.FC = () => {
             if (msg.type === 'combat') color = 'text-red-600 font-bold';
             return (
                 <div key={i} className={`${color} leading-tight break-words border-l-2 border-transparent pl-1 hover:border-emerald-500/30`}>
-                    <span className="opacity-30 mr-2 text-[8px]">[{new Date().toLocaleTimeString().split(' ')[0]}]</span>
+                    <span className="opacity-30 mr-2 text-[10px]">[{new Date().toLocaleTimeString().split(' ')[0]}]</span>
                     {msg.text}
                 </div>
             );
@@ -1186,10 +1171,35 @@ const GameContent: React.FC = () => {
         }
       `}} />
 
-      {/* VICTORY TRANSITION OVERLAY */}
+      {isMapExpanded && (
+        <div className="absolute inset-0 z-[100] bg-black/95 flex flex-col p-4 animate-in zoom-in duration-200">
+            <div className="flex justify-between items-center mb-4 border-b border-emerald-800 pb-2">
+                <span className="text-emerald-400 font-black uppercase tracking-widest text-lg">Tactical Map</span>
+                <button 
+                    onClick={() => setIsMapExpanded(false)}
+                    className="retro-button px-4 py-2 text-xs border-red-500 text-red-500 hover:bg-red-900"
+                >
+                    CLOSE [M]
+                </button>
+            </div>
+            <div className="flex-1 flex items-center justify-center overflow-hidden border-2 border-emerald-900/50 bg-black">
+                <Minimap 
+                    pos={currentPos} 
+                    dir={currentDir} 
+                    floor={currentFloor} 
+                    explored={explored[currentFloor] || new Set()} 
+                    mapData={dungeonFloors[currentFloor]}
+                    expanded={true}
+                />
+            </div>
+            <div className="mt-2 text-center text-xs text-emerald-800 font-bold uppercase">
+                Floor B{currentFloor + 1} • {explored[currentFloor]?.size || 0} Sectors Charted
+            </div>
+        </div>
+      )}
+
       {isVictoryTransition && <VictoryTransition />}
 
-      {/* TRAVELER DIALOG */}
       {showTravelerDialog && (
         <div className="absolute inset-0 z-[150] bg-black/95 flex items-center justify-center p-4">
             <div className="w-full max-w-lg bg-[#1a1005] border-2 border-amber-900 p-6 flex flex-col gap-6 relative shadow-[0_0_50px_rgba(255,160,50,0.1)]">
@@ -1198,7 +1208,9 @@ const GameContent: React.FC = () => {
                         <img src={AVATAR_TRAVELER} className="w-full h-full object-contain pixelated" alt="Traveler" />
                     </div>
                     <div>
-                        <h3 className="text-xl font-black text-amber-500 uppercase tracking-widest mb-1">Unshackled Soul</h3>
+                        <h3 className="text-xl font-black text-amber-500 uppercase tracking-widest mb-1">
+                            {currentFloor === 0 ? "?????" : "Unshackled Soul"}
+                        </h3>
                         <p className="text-xs text-amber-700 font-bold uppercase">The Lost Traveler</p>
                     </div>
                 </div>
@@ -1211,7 +1223,6 @@ const GameContent: React.FC = () => {
                 <button 
                     onClick={() => {
                         setShowTravelerDialog(false);
-                        // Convert Traveler tile to empty so he "leaves"
                         const newFloors = [...dungeonFloors];
                         newFloors[currentFloor][currentPos.y][currentPos.x] = 0;
                         setDungeonFloors(newFloors);
@@ -1225,7 +1236,6 @@ const GameContent: React.FC = () => {
         </div>
       )}
 
-      {/* TRANSITIONS */}
       {isBattleTransition && (
         <BattleTransition onComplete={() => {
             setIsBattleTransition(false);
@@ -1245,14 +1255,13 @@ const GameContent: React.FC = () => {
         />
       )}
 
-      {/* MERCHANT CONVERSATION OVERLAY */}
       {showMerchantIntro && (
         <MerchantConversation 
           merchantSprite={merchantSprite}
           onComplete={() => {
             setShowMerchantIntro(false);
             setHasMetMerchant(true);
-            setShowMerchantPrompt(true); // Open the prompt after talking
+            setShowMerchantPrompt(true); 
           }}
         />
       )}
@@ -1291,35 +1300,23 @@ const GameContent: React.FC = () => {
       
       {gameState === 'TITLE' && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#050000] overflow-hidden select-none">
-            {/* Dark Fantasy Background Atmosphere */}
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,#150000_0%,#000_80%)] z-0" />
-            
-            {/* Weathered Stone Texture Simulation */}
             <div className="absolute inset-0 opacity-[0.25] pointer-events-none z-0" 
                  style={{ 
                      backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 40px, #331111 40px, #331111 42px), repeating-linear-gradient(90deg, transparent, transparent 80px, #331111 80px, #331111 82px)',
                      backgroundSize: '160px 80px',
                  }} 
             />
-
-            {/* Drifting Mist and Fog */}
             <div className="absolute inset-0 pointer-events-none z-1 overflow-hidden">
                 <div className="absolute top-0 left-0 w-[300%] h-full bg-[radial-gradient(ellipse_at_50%_50%,rgba(60,0,0,0.15)_0%,transparent_70%)] animate-fog-scroll" />
                 <div className="absolute top-1/2 left-0 w-[400%] h-[300px] bg-[linear-gradient(to_right,transparent_0%,rgba(40,0,0,0.25)_50%,transparent_100%)] blur-[70px] animate-mist-scroll opacity-60" />
             </div>
-
-            {/* Fade Out Overlay */}
             <div className={`absolute inset-0 bg-black transition-opacity duration-[2000ms] pointer-events-none z-[60] ${isDescending ? 'opacity-100' : 'opacity-0'}`} />
-
-            {/* Content Container (Menu) - Highest Z-Index when visible */}
             <div className={`z-[70] flex flex-col items-center space-y-10 max-w-4xl w-full relative transition-all duration-1000 ${isDescending ? 'scale-150 opacity-0' : 'scale-100 opacity-100'}`}>
-                
-                {/* Header / Title Section */}
                 <div className="flex flex-col items-center space-y-2 relative group cursor-default text-center">
                     <div className="text-[#882222] font-serif tracking-[1.5em] text-[10px] md:text-sm uppercase animate-pulse mb-2 font-bold">
                         &mdash; FORSAKEN DEPTHS &mdash;
                     </div>
-                    
                     <div className="relative">
                         <div className="text-[12px] md:text-lg font-serif text-[#aa3333] tracking-[0.8em] mb-2 italic opacity-90 uppercase">Dungeon of the</div>
                         <h1 className="text-6xl md:text-9xl font-black text-transparent bg-clip-text bg-gradient-to-b from-[#ff4444] via-[#cc0000] to-[#220000] tracking-tighter drop-shadow-[0_10px_30px_rgba(200,0,0,0.7)] relative z-10 font-serif leading-none filter drop-shadow(0 0 10px #ff000033)"
@@ -1328,14 +1325,11 @@ const GameContent: React.FC = () => {
                         </h1>
                     </div>
                 </div>
-
-                {/* Dark Stone-Carved Menu */}
                 <div className="flex flex-col gap-6 w-full max-w-sm mt-10 px-6">
                     <button 
                         onClick={() => { 
                             sounds.init(); 
                             setIsDescending(true);
-                            // Delayed transition to match zoom animation
                             setTimeout(() => {
                                 setIsDescending(false);
                                 setGameState('LORE'); 
@@ -1349,7 +1343,6 @@ const GameContent: React.FC = () => {
                             DESCEND
                         </span>
                     </button>
-                    
                     <div className="grid grid-cols-2 gap-4">
                         <button disabled className="group px-4 py-4 bg-[#050000] border border-[#331111] opacity-40 cursor-not-allowed flex items-center justify-center">
                             <span className="text-[10px] md:text-xs font-bold tracking-widest text-[#662222] uppercase">
@@ -1362,39 +1355,25 @@ const GameContent: React.FC = () => {
                             </span>
                         </button>
                     </div>
-
                     <div className="text-[10px] md:text-xs text-[#552222] text-center mt-12 font-serif tracking-[0.3em] italic opacity-70 uppercase font-black">
                         Fate waits in the dark.
                     </div>
                 </div>
             </div>
-
-            {/* The Occult Crimson Eye Graphic - Lower Z-Index so it doesn't block buttons unless descending */}
             <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-[2500ms] ease-in-out" ${isDescending ? 'scale-[50] rotate-0 z-50' : 'scale-100 rotate-0 z-0'}`}>
-                {/* Visual Offset wrapper to position it correctly in layout initially, then centered absolute overrides take over */}
                 <div className={`w-32 h-32 md:w-48 md:h-48 bg-[#0a0000] rounded-[70%_30%_70%_30%] relative shadow-[0_0_100px_rgba(200,0,0,0.6)] flex items-center justify-center overflow-hidden border-[3px] border-[#551111] ${!isDescending ? 'animate-pulsate-eye rotate-[45deg]' : 'rotate-[45deg]'}`}>
-                    {/* Blood sheen */}
                     <div className="w-full h-full absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,#330000_0%,transparent_80%)] opacity-70" />
-                    
-                    {/* Iris Container */}
                     <div className="w-24 h-24 md:w-36 md:h-36 -rotate-[45deg] relative flex items-center justify-center">
-                        {/* Inner Eye structure */}
                         <div className={`w-20 h-20 md:w-30 md:h-30 bg-[#cc0000] rounded-full flex items-center justify-center shadow-[inset_0_0_30px_rgba(0,0,0,0.9)] border-2 border-[#ff444444] ${!isDescending ? 'animate-look-around' : ''}`}>
-                            {/* The Slit Pupil */}
-                            <div className="w-4 h-16 md:w-6 md:h-24 bg-[#000] rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 shadow-[0_0_20px_#000]" />
+                            <div className="w-4 h-16 md:w-6 md:h-24 bg-black rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 shadow-[0_0_20px_#000]" />
                             <div className="w-12 h-12 md:w-20 md:h-20 bg-black rounded-full opacity-60 blur-[4px]" />
-                            
-                            {/* Occult Runes / Details around iris */}
                             <div className="absolute inset-0 border-[4px] border-dotted border-[#ff000044] rounded-full animate-spin-slow" />
-                            
-                            {/* Cornea Highlight / Wetness */}
                             <div className="w-5 h-5 md:w-8 md:h-8 bg-white/40 rounded-full absolute top-1/4 left-1/4 blur-[2px] opacity-80" />
                             <div className="w-2 h-2 md:w-3 md:h-3 bg-white/60 rounded-full absolute top-[20%] left-[35%] blur-[1px]" />
                         </div>
                     </div>
                 </div>
             </div>
-
             {gameState === 'TITLE' && !isDescending && creationPhase === 'SELECTING' && (
                <div className="absolute bottom-4 right-4 z-[80]">
                    <button 
@@ -1410,7 +1389,6 @@ const GameContent: React.FC = () => {
                    </button>
                </div>
             )}
-
             <style dangerouslySetInnerHTML={{ __html: `
                 @keyframes fog-scroll {
                     0% { transform: translateX(-25%) translateY(-5%); }
@@ -1418,19 +1396,16 @@ const GameContent: React.FC = () => {
                     100% { transform: translateX(-25%) translateY(-5%); }
                 }
                 .animate-fog-scroll { animation: fog-scroll 30s infinite ease-in-out; }
-                
                 @keyframes mist-scroll {
                     0% { transform: translateX(0); }
                     100% { transform: translateX(-50%); }
                 }
                 .animate-mist-scroll { animation: mist-scroll 20s infinite linear; }
-
                 @keyframes pulsate-eye {
                     0%, 100% { transform: rotate(45deg) scale(1); box-shadow: 0 0 80px rgba(150,0,0,0.5); }
                     50% { transform: rotate(45deg) scale(1.03); box-shadow: 0 0 120px rgba(255,0,0,0.7); }
                 }
                 .animate-pulsate-eye { animation: pulsate-eye 4s infinite ease-in-out; }
-
                 @keyframes look-around {
                     0%, 100% { transform: translate(0, 0); }
                     15% { transform: translate(-4px, -2px); }
@@ -1440,7 +1415,6 @@ const GameContent: React.FC = () => {
                     80% { transform: translate(-2px, -2px); }
                 }
                 .animate-look-around { animation: look-around 8s infinite ease-in-out; }
-
                 @keyframes spin-slow {
                     0% { transform: rotate(0deg); }
                     100% { transform: rotate(360deg); }
@@ -1450,14 +1424,11 @@ const GameContent: React.FC = () => {
         </div>
       )}
 
-      {/* ... (Rest of component render blocks remain identical) ... */}
       {gameState === 'LORE' && <LoreCutscene onComplete={() => { setGameState('CREATION'); setCreatingParty([]); setCreationPhase('SELECTING'); }} />}
-      {/* ... */}
+      
       {gameState === 'CREATION' && (
         <div className="absolute inset-0 z-50 flex flex-col bg-black text-emerald-500 font-mono select-none overflow-hidden">
-            {/* ... Content ... */}
             <div className="z-10 flex flex-col h-full p-4 md:p-8">
-                {/* ... */}
                 <div className="flex-1 flex flex-col md:flex-row gap-8 min-h-0">
                     <div className="w-full md:w-1/3 max-w-sm flex flex-col border-2 border-emerald-900/50 bg-black/40 p-2 shrink-0">
                         <div className="overflow-y-auto custom-scrollbar flex-1 pr-2">
@@ -1477,7 +1448,6 @@ const GameContent: React.FC = () => {
                           </div>
                         </div>
                     </div>
-                    {/* ... */}
                     <div className="flex-1 flex flex-col gap-4 min-w-0 h-full relative">
                         <div className="flex-1 flex flex-row gap-4 h-full min-h-0 perspective-[1000px]">
                             {creatingParty.length === 0 && (
@@ -1521,10 +1491,16 @@ const GameContent: React.FC = () => {
           </div>
           <div className="w-full md:w-96 flex-none flex flex-col md:bg-black/90 md:h-full">
             <div className="p-3 md:p-4 border-b border-emerald-900 flex flex-col gap-4">
-                 <div className="flex justify-center">
+                 <div className="flex justify-center relative">
                     <Minimap pos={currentPos} dir={currentDir} floor={currentFloor} explored={explored[currentFloor] || new Set()} mapData={dungeonFloors[currentFloor]} />
+                    <button 
+                        onClick={() => setIsMapExpanded(true)}
+                        className="absolute bottom-2 right-2 bg-emerald-900/80 border border-emerald-500 text-emerald-300 w-6 h-6 flex items-center justify-center hover:bg-emerald-700 text-xs font-bold rounded-sm z-20"
+                        title="Expand Map [M]"
+                    >
+                        +
+                    </button>
                  </div>
-                 {/* Mobile Controls */}
                  <div className="md:hidden flex justify-center gap-2"><button onClick={() => move(-1)} className="retro-button p-3 text-lg leading-none">▲</button></div>
                  <div className="md:hidden flex justify-center gap-2">
                     <button onClick={() => turn(-1)} className="retro-button p-3 text-lg leading-none">◀</button>
@@ -1533,38 +1509,60 @@ const GameContent: React.FC = () => {
                  </div>
             </div>
             
-            {/* Party Status */}
-            <div className="p-3 grid grid-cols-3 md:grid-cols-1 gap-2 border-t md:border-t-0 border-emerald-900 bg-black/80 md:bg-transparent">
+            <div className="p-3 grid grid-cols-3 md:grid-cols-1 gap-4 border-t md:border-t-0 border-emerald-900 bg-black/80 md:bg-transparent">
                 {party.map((p, i) => {
                   const stats = calculateDerivedStats(p);
                   const isSelectedForAction = quickActionTargeting && (quickActionTargeting.type === 'item' || quickActionTargeting.type === 'skill');
+                  const xpToNext = p.level * 100;
+                  const xpProgress = Math.min(100, (p.xp / xpToNext) * 100);
+
                   return (
                     <div 
                         key={p.id} 
                         onClick={() => isSelectedForAction && executeQuickAction(i)}
-                        className={`text-[8px] md:text-xs border p-1 md:p-2 flex gap-2 items-center transition-all cursor-pointer
+                        className={`text-xs md:text-sm border p-2 flex gap-3 items-start transition-all cursor-pointer relative
                             ${p.hp <= 0 ? 'border-red-900 bg-red-950/20 opacity-50' : 'border-emerald-900 md:bg-emerald-950/10'}
                             ${isSelectedForAction ? 'hover:bg-emerald-500/20 hover:border-emerald-400 animate-pulse' : ''}
                         `}
                     >
-                        <img src={p.avatar} alt={p.class} className="w-8 h-8 md:w-10 md:h-10 border border-emerald-800 bg-black object-contain pixelated hidden md:block" />
-                        <div className="flex-1 min-w-0">
-                          <div className={`font-bold uppercase ${p.hp <= 0 ? 'text-red-500' : 'text-white'} md:mb-1 truncate`}>{p.class}</div>
-                          <div className="flex justify-between"><span>HP:</span> <span>{p.hp}/{stats.maxHp}</span></div>
-                          <div className="flex justify-between"><span>MP:</span> <span>{p.mp}/{stats.maxMp}</span></div>
+                        <img src={p.avatar} alt={p.class} className="w-10 h-10 md:w-12 md:h-12 border border-emerald-800 bg-black object-contain pixelated hidden md:block shrink-0" />
+                        <div className="flex-1 min-w-0 flex flex-col gap-1">
+                          <div className="flex justify-between items-center">
+                              <div className={`font-black uppercase ${p.hp <= 0 ? 'text-red-500' : 'text-white'} truncate text-sm md:text-base`}>{p.class}</div>
+                              <div className="text-[10px] md:text-xs font-bold text-emerald-400 border border-emerald-900/50 px-1 bg-black/40">LV {p.level}</div>
+                          </div>
+                          
+                          {/* HP Bar */}
+                          <div className="w-full bg-red-950/50 h-3 border border-red-900/30 relative">
+                              <div className="absolute inset-0 bg-red-600 transition-all duration-300" style={{ width: `${(p.hp / stats.maxHp) * 100}%` }} />
+                              <div className="absolute inset-0 flex items-center justify-center text-[8px] md:text-[9px] font-bold text-white drop-shadow-md z-10 leading-none">
+                                  HP {p.hp}/{stats.maxHp}
+                              </div>
+                          </div>
+
+                          {/* MP Bar */}
+                          <div className="w-full bg-blue-950/50 h-3 border border-blue-900/30 relative">
+                              <div className="absolute inset-0 bg-blue-500 transition-all duration-300" style={{ width: `${(p.mp / stats.maxMp) * 100}%` }} />
+                              <div className="absolute inset-0 flex items-center justify-center text-[8px] md:text-[9px] font-bold text-white drop-shadow-md z-10 leading-none">
+                                  MP {p.mp}/{stats.maxMp}
+                              </div>
+                          </div>
+
+                          {/* XP Bar */}
+                          <div className="w-full bg-purple-950/50 h-1.5 mt-0.5 border border-purple-900/30 relative" title={`XP: ${p.xp}/${xpToNext}`}>
+                              <div className="absolute inset-0 bg-purple-500 transition-all duration-300" style={{ width: `${xpProgress}%` }} />
+                          </div>
                         </div>
                     </div>
                   );
                 })}
             </div>
 
-            {/* Bag/Skills Buttons */}
             <div className="p-2 flex gap-2 border-t border-emerald-900 mt-auto md:mt-0 bg-black">
                 <button onClick={() => setGameState('INVENTORY')} className="flex-1 retro-button py-2 text-[8px] md:text-sm border-emerald-400 bg-emerald-950/40">🎒 BAG</button>
                 <button onClick={() => setGameState('SKILLS')} className="flex-1 retro-button py-2 text-[8px] md:text-sm border-cyan-400 bg-cyan-950/40">✨ SKILLS</button>
             </div>
 
-            {/* Quick Actions Panel (Smart Layout) */}
             <div className="flex-1 border-t border-emerald-900 bg-black/40 overflow-hidden flex flex-col p-2 min-h-[150px]">
                 {quickActionTargeting ? (
                     <div className="flex-1 flex flex-col items-center justify-center animate-in zoom-in duration-200">
@@ -1578,7 +1576,6 @@ const GameContent: React.FC = () => {
                     <>
                         <div className="text-[10px] uppercase font-bold text-emerald-700 tracking-wider mb-2 text-center border-b border-emerald-900/30 pb-1">Quick Cast</div>
                         <div className="overflow-y-auto custom-scrollbar flex-1">
-                            {/* Potion Section */}
                             {sharedInventory.some(i => i.type === 'consumable') && (
                                 <div className="mb-3">
                                     <div className="text-[9px] text-emerald-600 font-bold mb-1 pl-1">CONSUMABLES</div>
@@ -1596,8 +1593,6 @@ const GameContent: React.FC = () => {
                                     </div>
                                 </div>
                             )}
-                            
-                            {/* Skills Section */}
                             <div className="text-[9px] text-cyan-600 font-bold mb-1 pl-1">SUPPORT SPELLS</div>
                             <div className="grid grid-cols-1 gap-1">
                                 {party.map((p, pIdx) => {
@@ -1634,7 +1629,6 @@ const GameContent: React.FC = () => {
         </div>
       )}
       
-      {/* ... Other States ... */}
       {gameState === 'SKILLS' && (
         <div className="absolute inset-0 z-50 md:flex md:items-center md:justify-center md:bg-black/80 md:backdrop-blur-sm">
             <div className="w-full h-full md:max-w-3xl md:h-[80vh] md:relative">
@@ -1693,6 +1687,7 @@ const GameContent: React.FC = () => {
             <BattleScreen 
             party={party} 
             enemies={activeEnemies} 
+            inventory={sharedInventory}
             activeCharIndex={activeCharIndex}
             targetIndex={targetIndex}
             setTargetIndex={setTargetIndex}
@@ -1705,7 +1700,7 @@ const GameContent: React.FC = () => {
             floatingTexts={floatingTexts}
             skeletonSprite={skeletonSprite}
             onAttack={handleAttack} 
-            onDefend={handleDefend}
+            onUseItem={handleCombatUseItem}
             onSkill={handleSkill}
             onRun={() => { stopAtbClock(); setGameState('EXPLORE'); addLog(`🏃 Party retreated safely.`, 'info'); }}
             calculateStats={calculateDerivedStats}

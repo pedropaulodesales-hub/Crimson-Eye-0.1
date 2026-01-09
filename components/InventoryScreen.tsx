@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Player, Item, DerivedStats, ItemType, ItemRarity } from '../types';
 
@@ -242,7 +243,7 @@ const InventoryScreen: React.FC<InventoryScreenProps> = ({
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2">
                   {activeList.map((item, i) => {
                     const itemCP = calculateCP(item);
                     return (

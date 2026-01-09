@@ -1,7 +1,7 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import { Position, Direction } from '../types';
-import { AVATAR_TRAVELER } from '../constants';
+import { AVATAR_TRAVELER, SPRITE_CHEST, SPRITE_STAIRS } from '../constants';
 
 interface DungeonRendererProps {
   pos: Position;
@@ -16,6 +16,8 @@ const DungeonRenderer: React.FC<DungeonRendererProps> = ({ pos, dir, floor, merc
   const containerRef = useRef<HTMLDivElement>(null);
   const [merchImg, setMerchImg] = useState<HTMLImageElement | null>(null);
   const [travelerImg, setTravelerImg] = useState<HTMLImageElement | null>(null);
+  const [chestImg, setChestImg] = useState<HTMLImageElement | null>(null);
+  const [stairsImg, setStairsImg] = useState<HTMLImageElement | null>(null);
   const animationFrameRef = useRef<number>(0);
   const phaseRef = useRef<number>(0);
 
@@ -50,6 +52,20 @@ const DungeonRenderer: React.FC<DungeonRendererProps> = ({ pos, dir, floor, merc
     const img = new Image();
     img.src = AVATAR_TRAVELER;
     img.onload = () => setTravelerImg(img);
+  }, []);
+
+  // Load chest image
+  useEffect(() => {
+    const img = new Image();
+    img.src = SPRITE_CHEST;
+    img.onload = () => setChestImg(img);
+  }, []);
+
+  // Load stairs image
+  useEffect(() => {
+    const img = new Image();
+    img.src = SPRITE_STAIRS;
+    img.onload = () => setStairsImg(img);
   }, []);
 
   // Grid vectors for N, E, S, W
@@ -181,8 +197,7 @@ const DungeonRenderer: React.FC<DungeonRendererProps> = ({ pos, dir, floor, merc
         const objSize = 25 / (d + 1.5);
         let objColor = '#fff';
         
-        if (frontCell === 4) objColor = '#ffd700'; // Treasure
-        else if (frontCell === 3) objColor = '#00ffff'; // Stairs
+        if (frontCell === 3) objColor = '#00ffff'; // Stairs
         else if (frontCell === 5) objColor = '#33ff33'; // Merchant (Emerald Green)
         else if (frontCell === 2) objColor = '#ff00ff'; // NPC
         else if (frontCell === 6) objColor = '#d97706'; // Traveler (Amber/Brown)
@@ -191,19 +206,50 @@ const DungeonRenderer: React.FC<DungeonRendererProps> = ({ pos, dir, floor, merc
         ctx.shadowColor = objColor;
         ctx.fillStyle = objColor;
         
-        if (frontCell === 4) {
-          ctx.fillRect(centerX - objSize, centerY, objSize * 2, objSize);
-        } else if (frontCell === 3) {
-          ctx.beginPath();
-          ctx.moveTo(centerX - objSize, centerY + objSize);
-          ctx.lineTo(centerX + objSize, centerY + objSize);
-          ctx.lineTo(centerX, centerY - objSize);
-          ctx.fill();
+        if (frontCell === 4) { // Chest
+          if (chestImg) {
+            const aspect = chestImg.width / chestImg.height;
+            const drawW = objSize * 4; 
+            const drawH = drawW / aspect;
+            
+            // Chest specific flicker
+            const flicker = 0.8 + Math.random() * 0.2;
+            ctx.globalAlpha = flicker * opacity;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = "#FFD700"; // Gold Glow
+            
+            ctx.drawImage(chestImg, centerX - drawW/2, centerY - drawH/2 + (drawH * 0.2), drawW, drawH);
+          } else {
+             // Fallback if image fails
+             ctx.fillStyle = '#ffd700';
+             ctx.fillRect(centerX - objSize, centerY, objSize * 2, objSize);
+          }
+        } else if (frontCell === 3) { // Stairs
+          if (stairsImg) {
+            const aspect = stairsImg.width / stairsImg.height;
+            const drawW = objSize * 5; 
+            const drawH = drawW / aspect;
+            
+            // Stairs static + slight glow pulse
+            const pulse = 0.9 + Math.sin(phaseRef.current * 0.5) * 0.1;
+            ctx.globalAlpha = pulse * opacity;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = "#00ffff"; 
+            
+            ctx.drawImage(stairsImg, centerX - drawW/2, centerY - drawH/2, drawW, drawH);
+          } else {
+            // Fallback
+            ctx.beginPath();
+            ctx.moveTo(centerX - objSize, centerY + objSize);
+            ctx.lineTo(centerX + objSize, centerY + objSize);
+            ctx.lineTo(centerX, centerY - objSize);
+            ctx.fill();
+          }
         } else if (frontCell === 5 || frontCell === 6) {
           const img = frontCell === 5 ? merchImg : travelerImg;
           if (img) {
             const aspect = img.width / img.height;
-            const drawW = objSize * 5;
+            const drawW = objSize * 6;
             const drawH = drawW / aspect;
             
             // Increased digital flicker
@@ -220,7 +266,7 @@ const DungeonRenderer: React.FC<DungeonRendererProps> = ({ pos, dir, floor, merc
           }
         } else {
           ctx.beginPath();
-          ctx.arc(centerX, centerY, objSize, 0, Math.PI * 2);
+          ctx.arc(centerX, centerY, objSize * 1.5, 0, Math.PI * 2); // Increased default size
           ctx.fill();
         }
         ctx.restore();
@@ -238,7 +284,7 @@ const DungeonRenderer: React.FC<DungeonRendererProps> = ({ pos, dir, floor, merc
     };
     animationFrameRef.current = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(animationFrameRef.current);
-  }, [pos, dir, floor, mapData, merchImg, travelerImg]);
+  }, [pos, dir, floor, mapData, merchImg, travelerImg, chestImg, stairsImg]);
 
   return (
     <div ref={containerRef} className="relative w-full h-full flex items-center justify-center bg-black overflow-hidden">
