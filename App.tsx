@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useRef, ErrorInfo, ReactNode }
 import { 
   Direction, Position, Player, Enemy, GameState, LogMessage, Item, DerivedStats, Skill, ItemType, ItemRarity, ItemMod, Buff, CombatResult, ClassDefinition
 } from './types';
-import { ITEMS, MATERIALS, ENEMIES, CLASSES, MOD_POOL, generateDungeon, MERCHANT_AVATAR, AVATAR_TRAVELER } from './constants';
+import { ITEMS, MATERIALS, ENEMIES, CLASSES, MOD_POOL, generateDungeon, MERCHANT_AVATAR, AVATAR_TRAVELER, CLASS_APTITUDES } from './constants';
 import DungeonRenderer from './components/DungeonRenderer';
 import BattleScreen, { AnimationType, FloatingText } from './components/BattleScreen';
 import InventoryScreen from './components/InventoryScreen';
@@ -16,6 +16,7 @@ import VictoryTransition from './components/VictoryTransition';
 import FloorTransition from './components/FloorTransition';
 import LoreCutscene from './components/LoreCutscene';
 import MerchantConversation from './components/MerchantConversation';
+import SealingTransition from './components/SealingTransition';
 import { sounds } from './soundManager';
 
 interface ErrorBoundaryProps {
@@ -81,6 +82,7 @@ const GameContent: React.FC = () => {
   const [isVictoryTransition, setIsVictoryTransition] = useState(false);
   const [isFloorTransition, setIsFloorTransition] = useState(false);
   const [isDescending, setIsDescending] = useState(false);
+  const [isSealingTransition, setIsSealingTransition] = useState(false);
 
   // UI States
   const [isMapExpanded, setIsMapExpanded] = useState(false);
@@ -110,9 +112,11 @@ const GameContent: React.FC = () => {
   const [dungeonFloors, setDungeonFloors] = useState<number[][][]>([]);
   const [currentFloor, setCurrentFloor] = useState(0);
   const [currentPos, setCurrentPos] = useState<Position>({ x: 1, y: 1 });
+  const [stairEntryPos, setStairEntryPos] = useState<Position>({x: 1, y: 1});
   // Start facing SOUTH (2) to see the guaranteed merchant immediately
   const [currentDir, setCurrentDir] = useState<Direction>(Direction.SOUTH);
   const [explored, setExplored] = useState<Record<number, Set<string>>>({});
+  const [stepsSinceBattle, setStepsSinceBattle] = useState(0);
 
   // ATB / Combat State
   const [atbValues, setAtbValues] = useState<Record<string, number>>({});
@@ -151,14 +155,22 @@ const GameContent: React.FC = () => {
     enemiesRef.current = activeEnemies;
   }, [party, activeEnemies]);
 
+  // Init sound manager on mount to attempt autoplay
+  useEffect(() => {
+    sounds.init();
+  }, []);
+
   // Music Management
   useEffect(() => {
     try {
-      if (gameState === 'EXPLORE' || gameState === 'COMBAT') {
+      if (gameState === 'TITLE' || gameState === 'CREATION') {
+        sounds.playLoreAmbience();
+      } else if (gameState === 'EXPLORE' || gameState === 'COMBAT') {
         sounds.playMusic(currentFloor);
-      } else if (gameState === 'TITLE' || gameState === 'DEATH' || gameState === 'LORE') {
+      } else if (gameState === 'DEATH') {
         sounds.stopMusic();
       }
+      // LORE state music is handled by the LoreCutscene component itself
     } catch (e) {
       console.warn("Audio playback failed", e);
     }
@@ -189,7 +201,8 @@ const GameContent: React.FC = () => {
 
   const calculateDerivedStats = (ent: Player | Enemy | any): DerivedStats => {
     const equipped = [ent.weapon, ent.helm, ent.chest, ent.gloves, ent.boots, ent.accessory].filter(Boolean) as Item[];
-    
+    const isPlayer = !!ent.class; // Check if it's a player for aptitude system
+
     const passiveBonuses: Record<string, number> = {
         str: 0, int: 0, dex: 0, vit: 0, cha: 0,
         hp: 0, mp: 0, atk: 0, def: 0, mAtk: 0, mDef: 0, 
@@ -205,8 +218,42 @@ const GameContent: React.FC = () => {
       });
     }
 
+    // APTITUDE SYSTEM LOGIC
     const modValues: Record<string, number> = { str: 0, int: 0, dex: 0, vit: 0, cha: 0, atk: 0, def: 0, mAtk: 0, mDef: 0, hp: 0, mp: 0, critChance: 0 };
-    equipped.forEach(item => { item.mods?.forEach(mod => { modValues[mod.stat] = (modValues[mod.stat] || 0) + mod.value; }); });
+    let itemBonusStats: Record<string, number> = { atk: 0, def: 0, mAtk: 0, mDef: 0, maxHp: 0, maxMp: 0 };
+    let heavyItemsEquipped = 0;
+
+    equipped.forEach(item => { 
+        let multiplier = 1.0;
+        
+        if (isPlayer && item.weight) {
+            const aptitudes = CLASS_APTITUDES[ent.class as keyof typeof CLASS_APTITUDES];
+            if (aptitudes) {
+                multiplier = aptitudes[item.weight] || 1.0;
+            }
+            if (item.weight === 'HEAVY') heavyItemsEquipped++;
+        }
+
+        // Apply aptitude multiplier to base item stats
+        if (item.stat) {
+            // "stat" usually maps to ATK for weapons or DEF for armor
+            if (item.type === 'weapon') itemBonusStats.atk += Math.floor(item.stat * multiplier);
+            else if (item.type === 'accessory') itemBonusStats.atk += Math.floor(item.stat * multiplier); // Simplified logic
+            else itemBonusStats.def += Math.floor(item.stat * multiplier);
+        }
+        if (item.magicStat) {
+             // "magicStat" usually maps to M.ATK for weapons or M.DEF/MP for other things
+             if (item.type === 'weapon') itemBonusStats.mAtk += Math.floor(item.magicStat * multiplier);
+             else if (item.type === 'consumable') {} // Handled elsewhere
+             else itemBonusStats.mDef += Math.floor(item.magicStat * multiplier);
+        }
+
+        // Mods are also affected by aptitude? The prompt implies "stats" generally.
+        // Let's apply multiplier to mods too for consistency.
+        item.mods?.forEach(mod => { 
+            modValues[mod.stat] = (modValues[mod.stat] || 0) + Math.floor(mod.value * multiplier); 
+        }); 
+    });
     
     const buffValues: Record<string, number> = { str: 0, int: 0, dex: 0, vit: 0, atk: 0, def: 0, mAtk: 0, mDef: 0, acc: 0, eva: 0, critChance: 0, maxHp: 0 };
     if (ent.buffs) {
@@ -222,19 +269,31 @@ const GameContent: React.FC = () => {
     const effectiveVit = Math.max(0, ent.vit + modValues.vit + passiveBonuses.vit + buffValues.vit);
     const effectiveCha = Math.max(0, ent.cha + (modValues.cha || 0) + passiveBonuses.cha + (buffValues.cha || 0));
     
-    const weaponBonus = (ent.weapon?.stat || 0); 
-    const armorBonus = [ent.helm, ent.chest, ent.gloves, ent.boots].reduce((sum, i) => sum + (i?.stat || 0), 0);
-    const accessoryStat = (ent.accessory?.stat || 0);
-    const accessoryMagic = (ent.accessory?.magicStat || 0);
-
-    const atk = Math.floor(effectiveStr * 2) + weaponBonus + accessoryStat + modValues.atk + passiveBonuses.atk + buffValues.atk;
-    const mAtk = Math.floor(effectiveInt * 2) + (ent.weapon?.magicStat || 0) + accessoryMagic + modValues.mAtk + passiveBonuses.mAtk + buffValues.mAtk;
-    const def = Math.floor(effectiveVit * 1.5) + armorBonus + modValues.def + passiveBonuses.def + buffValues.def;
-    const mDef = Math.floor(effectiveInt * 1.0) + accessoryMagic + modValues.mDef + passiveBonuses.mDef + buffValues.mDef;
+    const atk = Math.floor(effectiveStr * 2) + itemBonusStats.atk + modValues.atk + passiveBonuses.atk + buffValues.atk;
+    const mAtk = Math.floor(effectiveInt * 2) + itemBonusStats.mAtk + modValues.mAtk + passiveBonuses.mAtk + buffValues.mAtk;
+    const def = Math.floor(effectiveVit * 1.5) + itemBonusStats.def + modValues.def + passiveBonuses.def + buffValues.def;
+    const mDef = Math.floor(effectiveInt * 1.0) + itemBonusStats.mDef + modValues.mDef + passiveBonuses.mDef + buffValues.mDef;
     
+    // Penalties for Heavy usage on specific classes
+    let speedPenalty = 0;
+    let evaPenalty = 0;
+    let critPenalty = 0;
+
+    if (isPlayer && heavyItemsEquipped > 0) {
+        if (ent.class === 'ARCHER') {
+            speedPenalty = 5 * heavyItemsEquipped; // Reduces turn speed (DEX effect on ATB)
+        } else if (ent.class === 'ROGUE') {
+            evaPenalty = 10 * heavyItemsEquipped;
+            critPenalty = 5 * heavyItemsEquipped;
+        }
+    }
+
+    // Adjust effective speed (DEX) used for ATB by speedPenalty
+    const effectiveSpeedDex = Math.max(1, effectiveDex - speedPenalty);
+
     const acc = Math.min(99, Math.floor(85 + (effectiveDex * 0.5) + passiveBonuses.acc + buffValues.acc));
-    const eva = Math.min(75, Math.floor(effectiveDex * 0.8) + passiveBonuses.eva + buffValues.eva);
-    const critChance = Math.min(80, Math.floor(effectiveDex * 0.5) + passiveBonuses.critChance + (buffValues.critChance || 0) + (modValues.critChance || 0));
+    const eva = Math.max(0, Math.min(75, Math.floor(effectiveDex * 0.8) + passiveBonuses.eva + buffValues.eva - evaPenalty));
+    const critChance = Math.max(0, Math.min(80, Math.floor(effectiveDex * 0.5) + passiveBonuses.critChance + (buffValues.critChance || 0) + (modValues.critChance || 0) - critPenalty));
     const critDamage = 150 + (effectiveStr * 2) + passiveBonuses.critDamage;
 
     const baseMaxHp = ent.maxHp ?? ent.hp; 
@@ -242,8 +301,13 @@ const GameContent: React.FC = () => {
     const maxHp = baseMaxHp + modValues.hp + passiveBonuses.hp + (buffValues.maxHp || 0);
     const maxMp = baseMaxMp + modValues.mp + passiveBonuses.mp;
 
+    // We return effectiveDex, but for turn order calculation logic (which uses 'dex' from entity or derived?), 
+    // the UI consumes effectiveDex. The ATB logic inside GameContent uses p.dex.
+    // NOTE: GameContent ATB uses base p.dex currently. Ideally it should use derived stats.
+    // For now, we return effectiveSpeedDex as effectiveDex to reflect the penalty in UI and future logic if updated.
+    
     return { 
-        effectiveStr, effectiveInt, effectiveDex, effectiveVit, effectiveCha,
+        effectiveStr, effectiveInt, effectiveDex: effectiveSpeedDex, effectiveVit, effectiveCha,
         atk, mAtk, def, mDef, acc, eva, critChance, critDamage, maxHp, maxMp 
     };
   };
@@ -300,7 +364,21 @@ const GameContent: React.FC = () => {
         
         partyRef.current.forEach(p => {
           if (p.hp > 0 && !triggeredId) {
-            const fillRate = 1.0 + (p.dex * 0.1);
+            // Use derived stats for ATB calculation to respect aptitude speed penalties
+            // Note: calculateDerivedStats is defined in render scope, we need to replicate basic logic or assume base dex for simplicity
+            // To properly fix, we should pre-calc derived stats. For this iteration, we use base DEX + simple modifier approximation.
+            // However, since App component re-renders often, we can't easily access calculateDerivedStats inside this callback closure efficiently without refs.
+            // Let's stick to base stats for now but add a note. 
+            // actually, let's fix it properly. The speed penalty modifies 'effectiveDex'.
+            // Since we can't call calculateDerivedStats here easily without huge refactor, we will rely on base dex for now, 
+            // BUT since this is a requirement, let's apply a quick check.
+            
+            let speed = p.dex;
+            // Rough penalty application for ATB tick
+            const heavyCount = [p.weapon, p.helm, p.chest, p.gloves, p.boots].filter(i => i?.weight === 'HEAVY').length;
+            if (p.class === 'ARCHER' && heavyCount > 0) speed -= (5 * heavyCount);
+            
+            const fillRate = 1.0 + (Math.max(1, speed) * 0.1);
             next[p.id] = Math.min(ATB_MAX, (next[p.id] || 0) + fillRate);
             if (next[p.id] >= ATB_MAX) triggeredId = p.id;
           }
@@ -663,7 +741,12 @@ const GameContent: React.FC = () => {
     const skillLevel = attacker.skillLevels[skill.id] || 0; 
     
     setActingId(attacker.id);
-    const levelPowerMult = 1 + (skillLevel - 1) * 0.2;
+    
+    // Updated scaling per user request: Base(1.0) -> +1(1.12) -> +2(1.25) -> +3(1.45) approx
+    // We'll use a smoother function that closely matches the request
+    const multipliers = [1.0, 1.15, 1.30, 1.50];
+    const levelPowerMult = multipliers[Math.min(3, Math.max(0, skillLevel - 1))];
+
     sounds.playEffect('skill');
     addLog(`🔥 ${attacker.class} uses skill: ${skill.name} (Lv.${skillLevel})!`, 'player_action');
     setParty(prev => prev.map(m => m.id === attacker.id ? { ...m, mp: m.mp - skill.cost } : m));
@@ -679,7 +762,7 @@ const GameContent: React.FC = () => {
     setTimeout(() => setImpactIds([]), 500);
     setTimeout(() => {
         if (skill.targetType === 'enemy') {
-            setCurrentAnim(skill.id === 'w_cleave' || skill.id === 'r_dage' ? 'physical' : 'magical');
+            setCurrentAnim(skill.id.includes('cleave') || skill.id.includes('stab') ? 'physical' : 'magical');
             const currentEnemies = enemiesRef.current;
             const newEnemies = [...currentEnemies]; 
             targetIds.forEach(tid => {
@@ -689,7 +772,7 @@ const GameContent: React.FC = () => {
                 const power = (skill.basePower || 1.0) * levelPowerMult;
                 let dmg = 0;
                 
-                if (skill.id === 'r_gold') {
+                if (skill.id === 'r_mug') {
                     dmg = 5 + Math.floor(stats.effectiveDex * 0.5); 
                     if (!oldTarget.stolenFrom) {
                         const stealChance = 25 + (stats.effectiveDex * 2);
@@ -717,22 +800,39 @@ const GameContent: React.FC = () => {
                 } else if (skill.id === 'b_blood') {
                     dmg = Math.floor(stats.atk * power);
                     spawnFloatingText(attacker.id, `+${Math.floor(dmg * 0.3)}`, "heal");
+                } else if (skill.id === 'b_shout') {
+                    dmg = 0; // Battle Shout does no damage
                 } else {
                     dmg = skill.type === 'attack' ? Math.floor(stats.atk * power) : Math.floor(stats.mAtk * power);
                 }
                 
                 if (skill.id === 'w_bash') {
-                    setAtbValues(prev => ({...prev, [tid]: Math.max(0, (prev[tid] || 0) - 30)}));
-                } else if (skill.id === 'r_pois') {
-                    const newBuffs = [...oldTarget.buffs.filter(b => b.id !== 'poison'), { id: 'poison', name: 'Poison', type: 'debuff', stat: 'def', value: -5, duration: 3 } as Buff];
+                    // Stun chance increases with level
+                    const stunChance = 60 + (skillLevel * 5);
+                    if (Math.random() * 100 < stunChance) {
+                        setAtbValues(prev => ({...prev, [tid]: Math.max(0, (prev[tid] || 0) - 50)}));
+                        spawnFloatingText(tid, "STUN", "block");
+                    }
+                } else if (skill.id === 'b_shout') {
+                    // AoE Stun logic
+                    const stunChance = 40 + (skillLevel * 10);
+                    if (Math.random() * 100 < stunChance) {
+                        setAtbValues(prev => ({...prev, [tid]: 0 })); // Full turn reset
+                        spawnFloatingText(tid, "STUN", "block");
+                    }
+                } else if (skill.id === 'r_pois' || skill.id === 'a_tox') {
+                    const newBuffs = [...oldTarget.buffs.filter(b => b.id !== 'poison'), { id: 'poison', name: 'Poison', type: 'debuff', stat: 'def', value: -5, duration: 2 + skillLevel } as Buff];
                     newEnemies[targetIdx] = { ...newEnemies[targetIdx], buffs: newBuffs };
-                } else if (skill.id === 'a_fire') {
-                    const newBuffs = [...oldTarget.buffs.filter(b => b.id !== 'burn'), { id: 'burn', name: 'Burn', type: 'debuff', stat: 'def', value: -10, duration: 2 } as Buff];
-                    newEnemies[targetIdx] = { ...newEnemies[targetIdx], buffs: newBuffs };
+                } else if (skill.id === 'a_fire' || skill.id === 'm_fire' || skill.id === 'm_solar') {
+                    const burnChance = 40 + skillLevel * 10;
+                    if (Math.random() * 100 < burnChance) {
+                        const newBuffs = [...oldTarget.buffs.filter(b => b.id !== 'burn'), { id: 'burn', name: 'Burn', type: 'debuff', stat: 'def', value: -10, duration: 2 } as Buff];
+                        newEnemies[targetIdx] = { ...newEnemies[targetIdx], buffs: newBuffs };
+                    }
                 }
                 const newHp = Math.max(0, newEnemies[targetIdx].hp - dmg);
                 newEnemies[targetIdx] = { ...newEnemies[targetIdx], hp: newHp };
-                spawnFloatingText(tid, `-${dmg}`, "damage");
+                if (dmg > 0) spawnFloatingText(tid, `-${dmg}`, "damage");
             });
             setActiveEnemies(newEnemies);
             if (skill.id === 'b_blood') {
@@ -751,7 +851,7 @@ const GameContent: React.FC = () => {
                 
                 if ((skill as any).revive) {
                     if (p.hp > 0) return p;
-                    const healAmt = Math.floor(pStats.maxHp * 0.3);
+                    const healAmt = Math.floor(pStats.maxHp * (0.2 + skillLevel * 0.1));
                     spawnFloatingText(p.id, `REVIVE`, "heal");
                     return { ...p, hp: healAmt, buffs: [] }; 
                 }
@@ -765,16 +865,16 @@ const GameContent: React.FC = () => {
                 } else if (skill.type === 'buff') {
                     let newBuffs = [...p.buffs];
                     let buffsToAdd: Buff[] = [];
-                    if (skill.id === 'w_sw') buffsToAdd.push({ id: 'w_sw', name: 'Shield Wall', type: 'buff', stat: 'def', value: Math.floor(pStats.def * 0.5), duration: 3 });
-                    if (skill.id === 'm_shld') buffsToAdd.push({ id: 'm_shld', name: 'Mana Shield', type: 'buff', stat: 'mDef', value: Math.floor(pStats.mDef * 0.5), duration: 3 });
-                    if (skill.id === 'c_bless') buffsToAdd.push({ id: 'c_bless_s', name: 'Blessing', type: 'buff', stat: 'str', value: Math.ceil(p.str * 0.2), duration: 3 });
-                    if (skill.id === 'b_shout') buffsToAdd.push({ id: 'b_shout', name: 'War Cry', type: 'buff', stat: 'atk', value: Math.floor(stats.atk * 0.2 * levelPowerMult), duration: 3 });
-                    if (skill.id === 'a_eye') buffsToAdd.push({ id: 'a_eye', name: 'Eagle Eye', type: 'buff', stat: 'critChance', value: 20, duration: 3 });
-                    if (skill.id === 'r_inv') buffsToAdd.push({ id: 'r_inv', name: 'Vanish', type: 'buff', stat: 'eva', value: 30, duration: 2 });
-                    if (skill.id === 'b_endure') { 
-                        buffsToAdd.push({ id: 'b_endure', name: 'Endure', type: 'buff', stat: 'vit', value: Math.ceil(p.vit * 0.5), duration: 3 });
-                        p.hp += 50; 
-                    }
+                    // Generic buff duration scaling
+                    const dur = 2 + Math.floor(skillLevel / 2);
+
+                    if (skill.id === 'w_wall') buffsToAdd.push({ id: 'w_wall', name: 'Shield Wall', type: 'buff', stat: 'def', value: Math.floor(pStats.def * (0.4 + skillLevel * 0.1)), duration: dur });
+                    if (skill.id === 'm_shield') buffsToAdd.push({ id: 'm_shield', name: 'Mana Shield', type: 'buff', stat: 'mDef', value: Math.floor(pStats.mDef * (0.4 + skillLevel * 0.1)), duration: dur });
+                    if (skill.id === 'c_bless') buffsToAdd.push({ id: 'c_bless', name: 'Blessing', type: 'buff', stat: 'str', value: Math.ceil(p.str * 0.2), duration: dur });
+                    if (skill.id === 'w_cry') buffsToAdd.push({ id: 'w_cry', name: 'War Cry', type: 'buff', stat: 'atk', value: Math.floor(stats.atk * 0.15 * levelPowerMult), duration: dur });
+                    if (skill.id === 'a_eye') buffsToAdd.push({ id: 'a_eye', name: 'Eagle Eye', type: 'buff', stat: 'critChance', value: 15 + skillLevel * 5, duration: dur });
+                    if (skill.id === 'r_van') buffsToAdd.push({ id: 'r_van', name: 'Vanish', type: 'buff', stat: 'eva', value: 20 + skillLevel * 10, duration: 2 });
+                    
                     buffsToAdd.forEach(newB => {
                         newBuffs = newBuffs.filter(b => b.id !== newB.id);
                         newBuffs.push(newB);
@@ -838,6 +938,12 @@ const GameContent: React.FC = () => {
   };
 
   const handleEquip = (item: Item, playerIndex: number) => {
+    // Security check for Level requirement
+    if (item.minLevel && party[playerIndex].level < item.minLevel) {
+        sounds.playEffect('miss');
+        return;
+    }
+
     const slot = item.type as keyof Player;
     const oldItem = (party[playerIndex] as any)[slot];
     setSharedInventory(prev => {
@@ -910,13 +1016,11 @@ const GameContent: React.FC = () => {
         if (next.length === 3) setCreationPhase('CONFIRMING');
         return next;
       });
-      sounds.playEffect('loot');
+      sounds.playEffect('menu_select');
     }
   };
 
   const handleConfirmParty = () => {
-    const floors = generateDungeon();
-    setDungeonFloors(floors);
     const newParty: Player[] = creatingParty.map((cls, i) => ({
       id: `hero_${Date.now()}_${i}`,
       class: cls.type,
@@ -935,12 +1039,8 @@ const GameContent: React.FC = () => {
       buffs: []
     }));
     setParty(newParty);
-    setCurrentFloor(0);
-    setCurrentPos({x: 1, y: 1});
-    setExplored({});
-    setGameState('EXPLORE');
-    sounds.playEffect('victory');
-    addLog("The descent begins...", 'info');
+    sounds.playEffect('seal');
+    setIsSealingTransition(true);
   };
 
   const handleUpgradeSkill = (playerIndex: number, skillId: string) => {
@@ -949,7 +1049,8 @@ const GameContent: React.FC = () => {
       const p = next[playerIndex];
       if (p.skillPoints > 0) {
         const cur = p.skillLevels[skillId] || 0;
-        if (cur < 3) { 
+        // Increased max skill level from 3 to 4 to accommodate +3 upgrade
+        if (cur < 4) { 
           p.skillPoints--;
           p.skillLevels = { ...p.skillLevels, [skillId]: cur + 1 };
           addLog(`✨ ${p.class} upgraded skill!`, 'level');
@@ -983,7 +1084,23 @@ const GameContent: React.FC = () => {
 
   const spawnEnemies = () => {
     const enemyCount = Math.floor(Math.random() * 2) + 2;
-    const potential = ENEMIES.filter(e => currentFloor === 0 ? e.level === 1 : e.level <= currentFloor + 1);
+    let potential: Enemy[];
+
+    if (currentFloor === 0) {
+      potential = ENEMIES.filter(e => e.level === 1);
+    } else if (currentFloor === 1) {
+      // On floor 2 (index 1), only spawn level 2 and 3 enemies
+      potential = ENEMIES.filter(e => e.level === 2 || e.level === 3);
+    } else {
+      // General case for other floors
+      potential = ENEMIES.filter(e => e.level <= currentFloor + 1);
+    }
+    
+    // Fallback if no enemies match the criteria for a floor
+    if (potential.length === 0) {
+      potential = ENEMIES.filter(e => e.level <= currentFloor + 1);
+      if (potential.length === 0) potential = [ENEMIES[0]]; // Absolute fallback
+    }
     
     const newEnemies: Enemy[] = [];
     const newAtb: Record<string, number> = {};
@@ -1004,6 +1121,7 @@ const GameContent: React.FC = () => {
     party.forEach(p => newAtb[p.id] = Math.random() * 40);
     setAtbValues(newAtb);
     setActiveEnemies(newEnemies);
+    setStepsSinceBattle(0); // Reset steps after battle starts
     addLog(`⚔️ ENCOUNTER! Monsters emerge from the shadows.`, 'combat');
     
     sounds.playEffect('encounter');
@@ -1034,9 +1152,10 @@ const GameContent: React.FC = () => {
         sounds.playEffect('move');
     }
 
+    setStepsSinceBattle(prev => prev + 1);
     setCurrentPos({ x: nx, y: ny });
     checkSquare(nx, ny);
-  }, [gameState, currentDir, currentFloor, currentPos, dungeonFloors, explored, isBattleTransition, isVictoryTransition, showMerchantIntro, showMerchantPrompt, showTravelerDialog, isMapExpanded]);
+  }, [gameState, currentDir, currentFloor, currentPos, dungeonFloors, explored, isBattleTransition, isVictoryTransition, showMerchantIntro, showMerchantPrompt, showTravelerDialog, isMapExpanded, stepsSinceBattle]);
 
   const turn = useCallback((rot: number) => {
     if (gameState !== 'EXPLORE' || isBattleTransition || isVictoryTransition || showMerchantIntro || showMerchantPrompt || showTravelerDialog || isMapExpanded) return;
@@ -1069,6 +1188,7 @@ const GameContent: React.FC = () => {
           addLog(`🏆 You have conquered the final floor! Returning to surface...`, 'combat');
           setTimeout(() => setGameState('TITLE'), 3000);
       } else { 
+          setStairEntryPos(currentPos);
           setIsFloorTransition(true);
       }
     } else if (tile === 5) {
@@ -1079,7 +1199,9 @@ const GameContent: React.FC = () => {
       }
     } else if (tile === 6) {
         setShowTravelerDialog(true);
-    } else if (Math.random() < 0.18) spawnEnemies(); 
+    } else if (Math.random() < 0.18 && stepsSinceBattle > 10) {
+        spawnEnemies();
+    }
   };
 
   const generateMerchantStock = () => {
@@ -1171,6 +1293,11 @@ const GameContent: React.FC = () => {
         }
       `}} />
 
+      {isSealingTransition && <SealingTransition onComplete={() => {
+        setIsSealingTransition(false);
+        setGameState('LORE');
+      }} />}
+
       {isMapExpanded && (
         <div className="absolute inset-0 z-[100] bg-black/95 flex flex-col p-4 animate-in zoom-in duration-200">
             <div className="flex justify-between items-center mb-4 border-b border-emerald-800 pb-2">
@@ -1249,7 +1376,7 @@ const GameContent: React.FC = () => {
             floor={currentFloor}
             onMidpoint={() => {
                 setCurrentFloor(f => f + 1); 
-                setCurrentPos({ x: 1, y: 1 });
+                setCurrentPos(stairEntryPos);
             }}
             onComplete={() => setIsFloorTransition(false)}
         />
@@ -1328,11 +1455,13 @@ const GameContent: React.FC = () => {
                 <div className="flex flex-col gap-6 w-full max-w-sm mt-10 px-6">
                     <button 
                         onClick={() => { 
-                            sounds.init(); 
+                            sounds.playEffect('menu_select');
                             setIsDescending(true);
                             setTimeout(() => {
                                 setIsDescending(false);
-                                setGameState('LORE'); 
+                                setGameState('CREATION'); 
+                                setCreatingParty([]);
+                                setCreationPhase('SELECTING');
                             }, 2500);
                         }} 
                         className="group relative px-8 py-6 bg-[#080000] border-2 border-[#441111] hover:border-[#ff4444] hover:bg-[#1a0000] transition-all duration-300 overflow-hidden text-center shadow-[0_10px_30px_rgba(0,0,0,0.8)] rounded-sm"
@@ -1424,7 +1553,15 @@ const GameContent: React.FC = () => {
         </div>
       )}
 
-      {gameState === 'LORE' && <LoreCutscene onComplete={() => { setGameState('CREATION'); setCreatingParty([]); setCreationPhase('SELECTING'); }} />}
+      {gameState === 'LORE' && <LoreCutscene onComplete={() => { 
+        const floors = generateDungeon();
+        setDungeonFloors(floors);
+        setCurrentFloor(0);
+        setCurrentPos({x: 1, y: 1});
+        setExplored({});
+        setGameState('EXPLORE');
+        addLog("The descent begins...", 'info');
+      }} />}
       
       {gameState === 'CREATION' && (
         <div className="absolute inset-0 z-50 flex flex-col bg-black text-emerald-500 font-mono select-none overflow-hidden">
@@ -1637,7 +1774,6 @@ const GameContent: React.FC = () => {
                 selectedCharIndex={selectedInventoryChar}
                 onSelectChar={setSelectedInventoryChar}
                 onUpgradeSkill={handleUpgradeSkill}
-                onCastSkill={handleCastSkillOutCombat}
                 onClose={() => setGameState('EXPLORE')}
                 calculateStats={calculateDerivedStats}
                 />

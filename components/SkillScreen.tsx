@@ -33,10 +33,13 @@ const SkillScreen: React.FC<SkillScreenProps> = ({
     <div className="space-y-2">
        {skills.map(skill => {
          const level = player.skillLevels[skill.id] || 0;
-         const isMax = level >= 3;
+         const isMax = level >= 4; // Max level updated to 4
          const canAfford = player.skillPoints > 0;
          const reqMet = player.level >= skill.minLevel;
          const isPassive = skill.type === 'passive';
+         
+         const multipliers = [1.0, 1.15, 1.30, 1.50];
+         const powerMult = multipliers[Math.min(3, Math.max(0, level - 1))];
 
          return (
            <div key={skill.id} className={`border-2 p-2 transition-all flex flex-col md:flex-row gap-2 relative ${level > 0 ? 'border-cyan-600 bg-cyan-950/10' : 'border-emerald-950 opacity-80'}`}>
@@ -49,7 +52,7 @@ const SkillScreen: React.FC<SkillScreenProps> = ({
                  <p className="text-[8px] md:text-xs text-cyan-800 leading-tight italic mt-0.5">"{skill.desc}"</p>
                  {level > 0 && !isPassive && (
                     <div className="text-[8px] text-cyan-700/60 uppercase mt-1">
-                       Power: +{(1 + (level - 1) * 0.2).toFixed(1)}x | Cost: {skill.cost} MP
+                       Power: {powerMult.toFixed(2)}x | Cost: {skill.cost} MP
                     </div>
                  )}
                  {level > 0 && isPassive && skill.passiveStat && (
@@ -61,7 +64,7 @@ const SkillScreen: React.FC<SkillScreenProps> = ({
               
               <div className="flex flex-row md:flex-col items-end justify-between shrink-0 gap-2">
                  <div className="flex gap-1">
-                    {[1,2,3].map(i => (
+                    {[1,2,3,4].map(i => (
                       <div key={i} className={`w-2 h-2 border ${i <= level ? 'bg-cyan-400 border-cyan-200 shadow-[0_0_5px_rgba(0,255,255,0.5)]' : 'border-cyan-950'}`} />
                     ))}
                  </div>

@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Player, Item, DerivedStats, ItemType, ItemRarity } from '../types';
+import { CLASS_APTITUDES } from '../constants';
 
 interface InventoryScreenProps {
   party: Player[];
@@ -45,23 +46,55 @@ const RARITY_PREFIX: Record<ItemRarity, string> = {
   UNIQUE: '[!] '
 };
 
-// Combat Power Calculation
-const calculateCP = (item: Item): number => {
+// Combat Power Calculation (Precise Version)
+export const calculateCP = (item: Item): number => {
   if (item.type === 'consumable' || item.type === 'material') return 0;
   
   let cp = 0;
-  // Base Stat Weight
-  cp += (item.stat || 0) * 12;
-  cp += (item.magicStat || 0) * 12;
   
-  // Mod Weight
-  item.mods?.forEach(m => {
-      cp += Math.abs(m.value) * 8;
-  });
+  // Weights based on improvement request
+  const W = {
+      STAT: 10,      // Base ATK/DEF
+      MAGIC_STAT: 10, // Base MATK/MDEF
+      STR: 15,
+      INT: 15,
+      DEX: 15,
+      VIT: 15,
+      CHA: 10,
+      HP: 0.5,
+      MP: 0.5,
+      CRIT: 20,
+      EVA: 20
+  };
 
-  // Rarity Bonus
+  if (item.stat) cp += item.stat * W.STAT;
+  if (item.magicStat) cp += item.magicStat * W.MAGIC_STAT;
+
+  if (item.mods) {
+      item.mods.forEach(m => {
+          const val = m.value;
+          switch(m.stat) {
+              case 'str': cp += val * W.STR; break;
+              case 'int': cp += val * W.INT; break;
+              case 'dex': cp += val * W.DEX; break;
+              case 'vit': cp += val * W.VIT; break;
+              case 'cha': cp += val * W.CHA; break;
+              case 'atk': cp += val * W.STAT; break; 
+              case 'def': cp += val * W.STAT; break;
+              case 'mAtk': cp += val * W.MAGIC_STAT; break;
+              case 'mDef': cp += val * W.MAGIC_STAT; break;
+              case 'hp': cp += val * W.HP; break;
+              case 'mp': cp += val * W.MP; break;
+              case 'critChance': cp += val * W.CRIT; break;
+              case 'eva': cp += val * W.EVA; break;
+              default: cp += val * 5; 
+          }
+      });
+  }
+
+  // Rarity Bonus (Intrinsic value of rarity tier)
   const rarityBonus: Record<string, number> = {
-    'NORMAL': 0, 'UNCOMMON': 15, 'MAGIC': 35, 'RARE': 70, 'LEGENDARY': 150, 'UNIQUE': 300
+    'NORMAL': 0, 'UNCOMMON': 20, 'MAGIC': 50, 'RARE': 100, 'LEGENDARY': 250, 'UNIQUE': 500
   };
   cp += rarityBonus[item.rarity || 'NORMAL'] || 0;
 
@@ -138,17 +171,21 @@ const InventoryScreen: React.FC<InventoryScreenProps> = ({
     );
   };
 
+  const getAptitude = (item: Item | null) => {
+      if (!item || !item.weight) return 1.0;
+      const aptitudes = CLASS_APTITUDES[player.class];
+      return aptitudes ? aptitudes[item.weight] : 1.0;
+  };
+
   const activeList = activeTab === 'ITEMS' ? sharedInventory : materialsPouch;
 
   return (
     <div className="flex flex-col h-full bg-[#020402] text-emerald-500 font-mono p-6 animate-in fade-in zoom-in duration-300 border-4 border-emerald-900 shadow-[0_0_50px_rgba(0,0,0,0.9)] overflow-hidden">
-      {/* Header */}
       <div className="flex justify-between items-center border-b-2 border-emerald-900 pb-4 mb-4 shrink-0">
         <h2 className="text-3xl md:text-5xl font-black tracking-[0.2em] uppercase text-emerald-400">BAG & GEAR</h2>
         <button onClick={onClose} className="retro-button px-6 py-3 text-sm md:text-lg border-red-900 text-red-500 hover:bg-red-900 hover:text-white">EXIT [ESC]</button>
       </div>
 
-      {/* Character Tabs */}
       <div className="flex gap-2 mb-6 shrink-0">
         {party.map((p, i) => (
           <button 
@@ -164,10 +201,8 @@ const InventoryScreen: React.FC<InventoryScreenProps> = ({
         ))}
       </div>
 
-      {/* Main Content: Flex Row Container */}
       <div className="flex gap-6 flex-1 overflow-hidden min-h-0">
         
-        {/* Left Side: Columns 1, 2, 3 (Equipment, Stats, Bag) */}
         <div className="flex gap-4 flex-1 min-w-0">
             {/* Column 1: Equipment Slots */}
             <div className="w-[30%] max-w-[280px] flex flex-col gap-2 shrink-0 border-2 border-emerald-900/50 bg-black/40 p-2">
@@ -177,6 +212,9 @@ const InventoryScreen: React.FC<InventoryScreenProps> = ({
                   const item = (player as any)[slot.type] as Item | null;
                   const isActive = selectedSlot === slot.type || (bagItem?.type === slot.type);
                   const cp = item ? calculateCP(item) : 0;
+                  const aptitude = getAptitude(item);
+                  const isReduced = aptitude < 1.0;
+
                   return (
                     <div 
                       key={slot.type}
@@ -192,14 +230,19 @@ const InventoryScreen: React.FC<InventoryScreenProps> = ({
                           {item ? `${RARITY_PREFIX[item.rarity || 'NORMAL']}${item.name}` : 'EMPTY'}
                         </div>
                       </div>
-                      {item && <div className="absolute top-1 right-1 text-[9px] font-black text-amber-500/80">CP {cp}</div>}
+                      {item && (
+                          <div className="absolute top-1 right-1 flex flex-col items-end">
+                              <span className="text-[9px] font-black text-amber-500/80">CP {cp}</span>
+                              {isReduced && <span className="text-[8px] font-bold text-red-500 bg-red-950/80 px-1 border border-red-900">{Math.round(aptitude * 100)}%</span>}
+                          </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
             </div>
 
-            {/* Column 2: Character Stats */}
+            {/* Column 2: Character Stats - CHANGED RES TO MDEF */}
             <div className="w-[25%] max-w-[240px] flex flex-col gap-2 shrink-0">
               <div className="flex justify-between items-end border-b border-emerald-900 pb-1 mb-1">
                 <div className="text-sm md:text-base font-black text-emerald-600 uppercase tracking-[0.2em]">Stats</div>
@@ -219,7 +262,7 @@ const InventoryScreen: React.FC<InventoryScreenProps> = ({
                 {renderStatComparison('ATK', currentStats.atk, hypotheticalStats?.atk)}
                 {renderStatComparison('MAG', currentStats.mAtk, hypotheticalStats?.mAtk)}
                 {renderStatComparison('DEF', currentStats.def, hypotheticalStats?.def)}
-                {renderStatComparison('RES', currentStats.mDef, hypotheticalStats?.mDef)}
+                {renderStatComparison('MDEF', currentStats.mDef, hypotheticalStats?.mDef)} 
                 {renderStatComparison('ACC', currentStats.acc, hypotheticalStats?.acc, true)}
                 {renderStatComparison('CRIT', currentStats.critChance, hypotheticalStats?.critChance, true)}
                 {renderStatComparison('EVA', currentStats.eva, hypotheticalStats?.eva, true)}
@@ -282,83 +325,109 @@ const InventoryScreen: React.FC<InventoryScreenProps> = ({
         {/* Right Side: Details Panel (Column 4) */}
         <div className="w-[35%] max-w-[450px] border-l-4 border-emerald-900 pl-6 flex flex-col justify-between shrink-0 bg-black/20">
           {selectedItem ? (
-            <div className="flex flex-col h-full gap-4 animate-in slide-in-from-right duration-300">
-                {/* Item Header */}
-                <div className="border-b-2 border-emerald-900 pb-4">
-                    <div className="flex justify-between items-start mb-2">
-                        <div className="flex flex-col">
-                            <div className={`font-black uppercase text-xl md:text-3xl leading-none mb-2 ${selectedItem.rarity ? RARITY_COLORS[selectedItem.rarity].split(' ')[1] : 'text-emerald-300'}`}>
-                                {selectedItem.name}
-                            </div>
-                            <div className="flex gap-2">
-                                <span className="text-xs font-bold text-cyan-400 border border-cyan-900 px-2 py-0.5 uppercase bg-cyan-950/20">{selectedItem.rarity || 'Common'} {selectedItem.type}</span>
-                                {selectedCP > 0 && <span className="text-xs font-black text-amber-500 border border-amber-900/50 px-2 py-0.5 bg-amber-950/20">CP {selectedCP}</span>}
-                            </div>
-                        </div>
-                    </div>
-                    <p className="text-sm text-emerald-600 italic border-l-4 border-emerald-800 pl-3 py-1">"{selectedItem.description}"</p>
-                </div>
-
-                {/* Main Stats */}
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-emerald-950/20 p-3 border border-emerald-900/30">
-                        <div className="text-xs text-emerald-800 font-bold uppercase mb-1">Base Stat</div>
-                        <div className="text-2xl font-black text-white">+{selectedItem.stat || 0}</div>
-                    </div>
-                    <div className="bg-emerald-950/20 p-3 border border-emerald-900/30">
-                        <div className="text-xs text-emerald-800 font-bold uppercase mb-1">Mag Stat</div>
-                        <div className="text-2xl font-black text-white">+{selectedItem.magicStat || 0}</div>
-                    </div>
-                </div>
-
-                {/* Mods */}
-                {selectedItem.mods && selectedItem.mods.length > 0 && (
-                    <div className="flex-1">
-                        <div className="text-xs text-emerald-800 font-black mb-2 uppercase tracking-widest border-b border-emerald-900/30 pb-1">Enchantments</div>
-                        <div className="flex flex-col gap-2">
-                            {selectedItem.mods.map((mod, mi) => (
-                                <div key={mi} className="text-sm flex justify-between bg-emerald-900/10 border border-emerald-900/30 px-3 py-2 items-center">
-                                    <span className="text-emerald-500 font-bold uppercase">{mod.stat}</span>
-                                    <span className="font-black text-cyan-300">+{mod.value}</span>
+            (() => {
+                const aptitude = getAptitude(selectedItem);
+                const isReduced = aptitude < 1.0;
+                const reqLevel = selectedItem.minLevel || 1;
+                const canEquip = player.level >= reqLevel;
+                
+                return (
+                <div className="flex flex-col h-full gap-4 animate-in slide-in-from-right duration-300">
+                    {/* Item Header */}
+                    <div className="border-b-2 border-emerald-900 pb-4">
+                        <div className="flex justify-between items-start mb-2">
+                            <div className="flex flex-col">
+                                <div className={`font-black uppercase text-xl md:text-3xl leading-none mb-2 ${selectedItem.rarity ? RARITY_COLORS[selectedItem.rarity].split(' ')[1] : 'text-emerald-300'}`}>
+                                    {selectedItem.name}
                                 </div>
-                            ))}
+                                <div className="flex gap-2 flex-wrap">
+                                    <span className="text-xs font-bold text-cyan-400 border border-cyan-900 px-2 py-0.5 uppercase bg-cyan-950/20">{selectedItem.rarity || 'Common'} {selectedItem.type}</span>
+                                    {selectedItem.weight && <span className="text-xs font-bold text-purple-400 border border-purple-900 px-2 py-0.5 uppercase bg-purple-950/20">{selectedItem.weight}</span>}
+                                    {selectedCP > 0 && <span className="text-xs font-black text-amber-500 border border-amber-900/50 px-2 py-0.5 bg-amber-950/20">CP {selectedCP}</span>}
+                                    <span className={`text-xs font-bold border px-2 py-0.5 uppercase ${canEquip ? 'text-emerald-500 border-emerald-900 bg-emerald-950/20' : 'text-red-500 border-red-900 bg-red-950/20'}`}>REQ LVL {reqLevel}</span>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                )}
-
-                {/* Comparison Block */}
-                {currentEquippedInSlot && bagItem && (
-                    <div className="bg-black/40 border border-emerald-900 p-3 opacity-80 mt-auto">
-                        <div className="flex justify-between items-center mb-2 border-b border-emerald-900/50 pb-1">
-                            <span className="text-xs text-emerald-700 font-black uppercase tracking-wider">REPLACING</span>
-                            <span className={`text-xs font-bold ${cpDiff > 0 ? 'text-green-500' : 'text-red-500'}`}>{cpDiff > 0 ? `+${cpDiff} CP` : `${cpDiff} CP`}</span>
-                        </div>
-                        <div className="truncate font-bold text-white text-sm mb-1">{currentEquippedInSlot.name}</div>
-                        <div className="flex gap-4 text-xs text-emerald-600">
-                            <span>BASE: <b className="text-emerald-400">+{currentEquippedInSlot.stat || 0}</b></span>
-                            <span>MAG: <b className="text-emerald-400">+{currentEquippedInSlot.magicStat || 0}</b></span>
-                        </div>
-                    </div>
-                )}
-
-                {/* Actions - Stick to bottom */}
-                <div className="mt-auto pt-4 flex flex-col gap-2">
-                    {selectedSlot && (player as any)[selectedSlot] ? (
-                        <button onClick={() => { onUnequip(selectedSlot, selectedCharIndex); setSelectedSlot(null); }} className="w-full retro-button py-4 text-lg border-red-900 text-red-500 hover:bg-red-900/20">UNEQUIP</button>
-                    ) : (
-                        <>
-                        {selectedItem.type !== 'material' && selectedItem.type !== 'consumable' ? (
-                            <button onClick={() => { onEquip(selectedItem, selectedCharIndex); setSelectedBagIndex(null); }} className="w-full retro-button py-4 text-lg border-emerald-400 bg-emerald-900/20 hover:bg-emerald-500 hover:text-black">EQUIP</button>
-                        ) : selectedItem.type === 'consumable' ? (
-                            <button onClick={() => { onUse(selectedItem, selectedCharIndex); setSelectedBagIndex(null); }} className="w-full retro-button py-4 text-lg border-cyan-500 text-cyan-500 hover:bg-cyan-900/20">USE</button>
-                        ) : (
-                            <div className="w-full py-4 text-center text-emerald-900 border border-emerald-900 bg-emerald-950/10 uppercase font-black tracking-widest">Material</div>
+                        {isReduced && (
+                            <div className="text-xs font-bold bg-red-950/40 border border-red-900 text-red-400 px-2 py-1 mb-2">
+                                ⚠ LOW APTITUDE: Stats reduced to {Math.round(aptitude * 100)}%
+                            </div>
                         )}
-                        <button onClick={() => { if (activeTab === 'ITEMS') onDrop(selectedBagIndex!); else onDropMaterial(selectedBagIndex!); setSelectedBagIndex(null); }} className="w-full border-2 border-red-900 text-red-800 text-sm font-black py-2 hover:bg-red-900 hover:text-white transition-colors">DROP ITEM</button>
-                        </>
+                        <p className="text-sm text-emerald-600 italic border-l-4 border-emerald-800 pl-3 py-1">"{selectedItem.description}"</p>
+                    </div>
+
+                    {/* Main Stats */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-emerald-950/20 p-3 border border-emerald-900/30">
+                            <div className="text-xs text-emerald-800 font-bold uppercase mb-1">Base Stat</div>
+                            <div className={`text-2xl font-black ${isReduced && (selectedItem.stat||0) > 0 ? 'text-red-400' : 'text-white'}`}>
+                                +{Math.floor((selectedItem.stat || 0) * aptitude)}
+                                {isReduced && (selectedItem.stat || 0) > 0 && <span className="text-xs opacity-50 ml-1 line-through">{selectedItem.stat}</span>}
+                            </div>
+                        </div>
+                        <div className="bg-emerald-950/20 p-3 border border-emerald-900/30">
+                            <div className="text-xs text-emerald-800 font-bold uppercase mb-1">Mag Stat</div>
+                            <div className={`text-2xl font-black ${isReduced && (selectedItem.magicStat||0) > 0 ? 'text-red-400' : 'text-white'}`}>
+                                +{Math.floor((selectedItem.magicStat || 0) * aptitude)}
+                                {isReduced && (selectedItem.magicStat || 0) > 0 && <span className="text-xs opacity-50 ml-1 line-through">{selectedItem.magicStat}</span>}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Mods */}
+                    {selectedItem.mods && selectedItem.mods.length > 0 && (
+                        <div className="flex-1">
+                            <div className="text-xs text-emerald-800 font-black mb-2 uppercase tracking-widest border-b border-emerald-900/30 pb-1">Enchantments</div>
+                            <div className="flex flex-col gap-2">
+                                {selectedItem.mods.map((mod, mi) => (
+                                    <div key={mi} className="text-sm flex justify-between bg-emerald-900/10 border border-emerald-900/30 px-3 py-2 items-center">
+                                        <span className="text-emerald-500 font-bold uppercase">{mod.stat}</span>
+                                        <span className={`font-black ${isReduced ? 'text-red-400' : 'text-cyan-300'}`}>
+                                            +{Math.floor(mod.value * aptitude)}
+                                            {isReduced && <span className="text-[9px] ml-1 opacity-50">({mod.value})</span>}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     )}
+
+                    {/* Comparison Block */}
+                    {currentEquippedInSlot && bagItem && (
+                        <div className="bg-black/40 border border-emerald-900 p-3 opacity-80 mt-auto">
+                            <div className="flex justify-between items-center mb-2 border-b border-emerald-900/50 pb-1">
+                                <span className="text-xs text-emerald-700 font-black uppercase tracking-wider">REPLACING</span>
+                                <span className={`text-xs font-bold ${cpDiff > 0 ? 'text-green-500' : 'text-red-500'}`}>{cpDiff > 0 ? `+${cpDiff} CP` : `${cpDiff} CP`}</span>
+                            </div>
+                            <div className="truncate font-bold text-white text-sm mb-1">{currentEquippedInSlot.name}</div>
+                            <div className="flex gap-4 text-xs text-emerald-600">
+                                <span>BASE: <b className="text-emerald-400">+{Math.floor((currentEquippedInSlot.stat || 0) * getAptitude(currentEquippedInSlot))}</b></span>
+                                <span>MAG: <b className="text-emerald-400">+{Math.floor((currentEquippedInSlot.magicStat || 0) * getAptitude(currentEquippedInSlot))}</b></span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Actions - Stick to bottom */}
+                    <div className="mt-auto pt-4 flex flex-col gap-2">
+                        {selectedSlot && (player as any)[selectedSlot] ? (
+                            <button onClick={() => { onUnequip(selectedSlot, selectedCharIndex); setSelectedSlot(null); }} className="w-full retro-button py-4 text-lg border-red-900 text-red-500 hover:bg-red-900/20">UNEQUIP</button>
+                        ) : (
+                            <>
+                            {selectedItem.type !== 'material' && selectedItem.type !== 'consumable' ? (
+                                <button disabled={!canEquip} onClick={() => { onEquip(selectedItem, selectedCharIndex); setSelectedBagIndex(null); }} className={`w-full retro-button py-4 text-lg transition-all ${canEquip ? 'border-emerald-400 bg-emerald-900/20 hover:bg-emerald-500 hover:text-black' : 'border-gray-800 text-gray-600 cursor-not-allowed bg-black'}`}>
+                                    {canEquip ? 'EQUIP' : 'LEVEL TOO LOW'}
+                                </button>
+                            ) : selectedItem.type === 'consumable' ? (
+                                <button onClick={() => { onUse(selectedItem, selectedCharIndex); setSelectedBagIndex(null); }} className="w-full retro-button py-4 text-lg border-cyan-500 text-cyan-500 hover:bg-cyan-900/20">USE</button>
+                            ) : (
+                                <div className="w-full py-4 text-center text-emerald-900 border border-emerald-900 bg-emerald-950/10 uppercase font-black tracking-widest">Material</div>
+                            )}
+                            <button onClick={() => { if (activeTab === 'ITEMS') onDrop(selectedBagIndex!); else onDropMaterial(selectedBagIndex!); setSelectedBagIndex(null); }} className="w-full border-2 border-red-900 text-red-800 text-sm font-black py-2 hover:bg-red-900 hover:text-white transition-colors">DROP ITEM</button>
+                            </>
+                        )}
+                    </div>
                 </div>
-            </div>
+            )})()
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-emerald-900 border-2 border-dashed border-emerald-950 bg-emerald-950/5 p-8 text-center animate-pulse">
                 <div className="text-6xl mb-6 opacity-20">⚙️</div>

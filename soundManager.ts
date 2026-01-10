@@ -1,11 +1,11 @@
 
-
 export class SoundManager {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private musicNodes: AudioNode[] = [];
   private currentMusicZone: number = -1;
   private sequencerTimer: number | null = null;
+  private sequencerTimerDrip: number | null = null;
 
   init() {
     if (this.ctx) return;
@@ -39,39 +39,125 @@ export class SoundManager {
     if (!this.ctx || !this.masterGain) return;
     if (this.ctx.state === 'suspended') this.ctx.resume();
     
-    if (this.currentMusicZone === 3) return;
+    // Zone 0: Haunted Intro (Title/Lore/Creation)
+    if (this.currentMusicZone === 0) return;
 
     this.stopMusic();
-    this.currentMusicZone = 3;
+    this.currentMusicZone = 0;
 
     const t = this.ctx.currentTime;
-    const ambGain = this.ctx.createGain();
-    ambGain.gain.setValueAtTime(0, t);
-    ambGain.gain.linearRampToValueAtTime(0.5, t + 3);
-    ambGain.connect(this.masterGain);
-    this.musicNodes.push(ambGain);
+    const mainGain = this.ctx.createGain();
+    mainGain.gain.setValueAtTime(0, t);
+    mainGain.gain.linearRampToValueAtTime(0.6, t + 4);
+    mainGain.connect(this.masterGain);
+    this.musicNodes.push(mainGain);
 
-    // Deep drone - pulsating
-    const osc1 = this.ctx.createOscillator();
-    osc1.type = 'sine';
-    osc1.frequency.value = 50; 
-    
-    const osc2 = this.ctx.createOscillator();
-    osc2.type = 'triangle';
-    osc2.frequency.value = 52; // Beat frequency
+    // --- LAYER 1: GHOSTLY ORGAN (The Presence) ---
+    const freqs = [55.00, 61.74, 82.41]; // A1, B1 (flatish), E2 - Dissonant/Dark
+    freqs.forEach((f, i) => {
+        const osc = this.ctx!.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.value = f;
+        osc.detune.value = (Math.random() - 0.5) * 15; 
 
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 200;
+        const filter = this.ctx!.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 300; 
 
-    osc1.connect(filter);
-    osc2.connect(filter);
-    filter.connect(ambGain);
+        // "Breathing" volume effect via filter modulation
+        const breathLfo = this.ctx!.createOscillator();
+        breathLfo.frequency.value = 0.15 + (i * 0.05); // Polyrhythmic breathing
+        const breathGain = this.ctx!.createGain();
+        breathGain.gain.value = 50; 
+        breathLfo.connect(breathGain);
+        breathGain.connect(filter.frequency);
 
-    osc1.start(t);
-    osc2.start(t);
+        const oscGain = this.ctx!.createGain();
+        oscGain.gain.value = 0.12; // Base volume
 
-    this.musicNodes.push(osc1, osc2, filter, ambGain);
+        osc.connect(filter);
+        filter.connect(oscGain);
+        oscGain.connect(mainGain);
+
+        osc.start(t);
+        breathLfo.start(t);
+        this.musicNodes.push(osc, filter, breathLfo, breathGain, oscGain);
+    });
+
+    // --- LAYER 2: PULSATING HEART (The Core) ---
+    const triggerHeartbeat = () => {
+        if (this.currentMusicZone !== 0 || !this.ctx) return;
+        const now = this.ctx.currentTime;
+
+        const playThump = (startTime: number, volume: number) => {
+            // Main deep thump tone - Deeper & Longer
+            const thumpOsc = this.ctx!.createOscillator();
+            thumpOsc.type = 'sine';
+            thumpOsc.frequency.setValueAtTime(70, startTime);
+            thumpOsc.frequency.exponentialRampToValueAtTime(25, startTime + 0.35);
+
+            const thumpGain = this.ctx!.createGain();
+            thumpGain.gain.setValueAtTime(0, startTime);
+            thumpGain.gain.linearRampToValueAtTime(volume, startTime + 0.02);
+            thumpGain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.5);
+
+            thumpOsc.connect(thumpGain);
+            thumpGain.connect(mainGain);
+            thumpOsc.start(startTime);
+            thumpOsc.stop(startTime + 0.5);
+
+            // Squelch Layer 1 (Main wet sound)
+            const noiseBuffer = this.createPinkNoise();
+            if (!noiseBuffer) return;
+            const noise = this.ctx!.createBufferSource();
+            noise.buffer = noiseBuffer;
+            
+            const filter = this.ctx!.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.Q.value = 6;
+            filter.frequency.setValueAtTime(500, startTime);
+            filter.frequency.exponentialRampToValueAtTime(70, startTime + 0.25);
+
+            const env = this.ctx!.createGain();
+            env.gain.setValueAtTime(0, startTime);
+            env.gain.linearRampToValueAtTime(volume * 0.5, startTime + 0.04);
+            env.gain.exponentialRampToValueAtTime(0.01, startTime + 0.45);
+
+            noise.connect(filter);
+            filter.connect(env);
+            env.connect(mainGain);
+            noise.start(startTime);
+            noise.stop(startTime + 0.5);
+            
+            // Squelch Layer 2 (Delayed "echo" for more fluid feel)
+            const noise2 = this.ctx!.createBufferSource();
+            noise2.buffer = noiseBuffer;
+            const filter2 = this.ctx!.createBiquadFilter();
+            filter2.type = 'bandpass';
+            filter2.Q.value = 3;
+            filter2.frequency.setValueAtTime(300, startTime + 0.1);
+            filter2.frequency.exponentialRampToValueAtTime(60, startTime + 0.4);
+
+            const env2 = this.ctx!.createGain();
+            env2.gain.setValueAtTime(0, startTime + 0.1);
+            env2.gain.linearRampToValueAtTime(volume * 0.3, startTime + 0.15);
+            env2.gain.exponentialRampToValueAtTime(0.01, startTime + 0.5);
+
+            noise2.connect(filter2);
+            filter2.connect(env2);
+            env2.connect(mainGain);
+            noise2.start(startTime + 0.1);
+            noise2.stop(startTime + 0.6);
+        };
+
+        // Slower "lub-dub" rhythm
+        playThump(now, 0.7); // Main beat
+        playThump(now + 0.5, 0.45); // Softer second beat with more delay
+
+        // Slower interval between heartbeats
+        this.sequencerTimer = window.setTimeout(triggerHeartbeat, 4800 + Math.random() * 2000);
+    };
+    triggerHeartbeat();
   }
 
   stopMusic() {
@@ -86,114 +172,172 @@ export class SoundManager {
     });
     this.musicNodes = [];
     
-    // Stop sequencer
+    // Stop sequencers
     if (this.sequencerTimer) {
         window.clearTimeout(this.sequencerTimer);
         this.sequencerTimer = null;
     }
+    if (this.sequencerTimerDrip) {
+        window.clearTimeout(this.sequencerTimerDrip);
+        this.sequencerTimerDrip = null;
+    }
     
     this.currentMusicZone = -1;
+  }
+
+  // Helper to generate Pink Noise for Wind
+  private createPinkNoise() {
+      if (!this.ctx) return null;
+      const bufferSize = this.ctx.sampleRate * 4; // 4 seconds loop
+      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+      for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          b0 = 0.99886 * b0 + white * 0.0555179;
+          b1 = 0.99332 * b1 + white * 0.0750759;
+          b2 = 0.96900 * b2 + white * 0.1538520;
+          b3 = 0.86650 * b3 + white * 0.3104856;
+          b4 = 0.55000 * b4 + white * 0.5329522;
+          b5 = -0.7616 * b5 - white * 0.0168980;
+          data[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+          data[i] *= 0.11; 
+          b6 = white * 0.115926;
+      }
+      return buffer;
   }
 
   private playDungeonTheme() {
     if (!this.ctx || !this.masterGain) return;
     const t = this.ctx.currentTime;
 
-    // Music Gain Node (Fade In)
     const musicGain = this.ctx.createGain();
     musicGain.gain.value = 0;
-    musicGain.gain.linearRampToValueAtTime(0.4, t + 4);
+    musicGain.gain.linearRampToValueAtTime(0.8, t + 6); // Slow fade in
     musicGain.connect(this.masterGain);
     this.musicNodes.push(musicGain);
 
-    // --- Layer 1: Drone (The Foundation) ---
-    const osc1 = this.ctx.createOscillator();
-    osc1.type = 'sawtooth';
-    osc1.frequency.value = 55.00; // A1
+    // --- LAYER 1: THE HOWLING WIND ---
+    const windBuffer = this.createPinkNoise();
+    if (windBuffer) {
+        const windSource = this.ctx.createBufferSource();
+        windSource.buffer = windBuffer;
+        windSource.loop = true;
+
+        const windFilter = this.ctx.createBiquadFilter();
+        windFilter.type = 'bandpass';
+        windFilter.Q.value = 7; // Increased Q for more resonance (howl)
+        windFilter.frequency.setValueAtTime(300, t);
+        
+        // Modulate wind frequency for "gusts"
+        const windLFO = this.ctx.createOscillator();
+        windLFO.type = 'sine';
+        windLFO.frequency.value = 0.12; // Slightly faster, more active gusts
+        
+        const lfoGain = this.ctx.createGain();
+        lfoGain.gain.value = 250; // Wider sweep range for more dramatic howls
+
+        windLFO.connect(lfoGain);
+        lfoGain.connect(windFilter.frequency);
+
+        windSource.connect(windFilter);
+        windFilter.connect(musicGain);
+        
+        windSource.start(t);
+        windLFO.start(t);
+        
+        this.musicNodes.push(windSource, windFilter, windLFO, lfoGain);
+    }
+
+    // --- LAYER 2: ISOLATION DRONE ---
+    const droneOsc = this.ctx.createOscillator();
+    droneOsc.type = 'sine';
+    droneOsc.frequency.value = 60; // Low hum
     
-    const osc2 = this.ctx.createOscillator();
-    osc2.type = 'sawtooth';
-    osc2.frequency.value = 55.50; // Detuned A1
+    const droneGain = this.ctx.createGain();
+    droneGain.gain.value = 0.1;
+    
+    droneOsc.connect(droneGain);
+    droneGain.connect(musicGain);
+    droneOsc.start(t);
+    this.musicNodes.push(droneOsc, droneGain);
 
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 120;
-    filter.Q.value = 2;
-
-    // Filter LFO
-    const lfo = this.ctx.createOscillator();
-    lfo.type = 'sine';
-    lfo.frequency.value = 0.05; 
-    const lfoGain = this.ctx.createGain();
-    lfoGain.gain.value = 40; 
-
-    lfo.connect(lfoGain);
-    lfoGain.connect(filter.frequency);
-
-    osc1.connect(filter);
-    osc2.connect(filter);
-    filter.connect(musicGain);
-
-    osc1.start(t);
-    osc2.start(t);
-    lfo.start(t);
-
-    this.musicNodes.push(osc1, osc2, filter, lfo, lfoGain);
-
-    // --- Layer 2: The Melody Sequencer ---
-    // A slow, haunting melody in A Minor / Phrygian
-    const sequence = [
-        { f: 220.00, d: 2 }, // A3
-        { f: 261.63, d: 2 }, // C4
-        { f: 246.94, d: 2 }, // B3
-        { f: 220.00, d: 2 }, // A3
-        { f: 174.61, d: 4 }, // F3
-        { f: 196.00, d: 2 }, // G3
-        { f: 164.81, d: 2 }, // E3 (Phrygian flavor)
-    ];
-
-    let noteIndex = 0;
-    const noteInterval = 3000; // 3 seconds per beat roughly
-
-    const playNextNote = () => {
+    // --- LAYER 3: TEETH GRINDING ---
+    const playGrind = () => {
         if (!this.ctx || this.currentMusicZone !== 1) return;
-        
-        const note = sequence[noteIndex % sequence.length];
         const now = this.ctx.currentTime;
-        
-        // Bell/Pluck sound
-        const osc = this.ctx.createOscillator();
-        osc.type = 'triangle';
-        osc.frequency.value = note.f;
-        
+
+        const noise = this.createNoiseSource(); // white noise
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.Q.value = 40; // High Q for a resonant, scraping texture
+        filter.frequency.setValueAtTime(1500 + Math.random() * 500, now); // Start at a high frequency
+        filter.frequency.exponentialRampToValueAtTime(1000, now + 0.15); // Scrape down slightly
+
         const env = this.ctx.createGain();
         env.gain.setValueAtTime(0, now);
-        env.gain.linearRampToValueAtTime(0.15, now + 0.1); // Attack
-        env.gain.exponentialRampToValueAtTime(0.001, now + note.d); // Decay
-        
-        // Reverb-ish effect via long release and filtering
-        const nFilter = this.ctx.createBiquadFilter();
-        nFilter.type = 'lowpass';
-        nFilter.frequency.value = 800;
+        env.gain.linearRampToValueAtTime(0.08, now + 0.01); // Very fast attack
+        env.gain.exponentialRampToValueAtTime(0.001, now + 0.2); // Short decay
 
-        osc.connect(nFilter);
-        nFilter.connect(env);
-        env.connect(musicGain); // Connect to main music bus
+        const pan = this.ctx.createStereoPanner();
+        pan.pan.value = (Math.random() - 0.5) * 1.8; // Random panning
+
+        noise.connect(filter);
+        filter.connect(env);
+        env.connect(pan);
+        pan.connect(musicGain);
+
+        noise.start(now);
+        noise.stop(now + 0.2);
+
+        this.musicNodes.push(noise, filter, env, pan);
+        
+        this.sequencerTimerDrip = window.setTimeout(playGrind, 5000 + Math.random() * 10000);
+    };
+    playGrind();
+
+    // --- LAYER 4: LONELY CHIMES SEQUENCER ---
+    const scale = [ 196.00, 220.00, 246.94, 293.66, 329.63, 392.00 ];
+
+    const playLonelyNote = () => {
+        if (!this.ctx || this.currentMusicZone !== 1) return;
+        
+        const nextTime = 6000 + Math.random() * 8000; 
+        const now = this.ctx.currentTime;
+        const noteFreq = scale[Math.floor(Math.random() * scale.length)];
+        
+        const osc = this.ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = noteFreq;
+        const env = this.ctx.createGain();
+        env.gain.setValueAtTime(0, now);
+        env.gain.linearRampToValueAtTime(0.08, now + 0.5);
+        env.gain.exponentialRampToValueAtTime(0.001, now + 5.0);
+        
+        const vib = this.ctx.createOscillator();
+        vib.frequency.value = 3; 
+        const vibGain = this.ctx.createGain();
+        vibGain.gain.value = 1.5;
+        vib.connect(vibGain);
+        vibGain.connect(osc.frequency);
+        vib.start(now);
+        vib.stop(now + 5);
+
+        osc.connect(env);
+        env.connect(musicGain);
 
         osc.start(now);
-        osc.stop(now + note.d + 1);
+        osc.stop(now + 5);
         
-        // Keep track to clean up if stopped abruptly (though stopMusic handles the main bus)
-        this.musicNodes.push(osc, env, nFilter);
+        this.musicNodes.push(osc, env, vib, vibGain);
 
-        noteIndex++;
-        this.sequencerTimer = window.setTimeout(playNextNote, noteInterval);
+        this.sequencerTimer = window.setTimeout(playLonelyNote, nextTime);
     };
 
-    playNextNote();
+    playLonelyNote();
   }
 
-  playEffect(type: 'move' | 'turn' | 'attack' | 'magic' | 'hit' | 'loot' | 'stairs' | 'victory' | 'death' | 'crit' | 'miss' | 'heal' | 'skill' | 'encounter' | 'type' | 'secret') {
+  playEffect(type: 'move' | 'turn' | 'attack' | 'magic' | 'hit' | 'loot' | 'stairs' | 'victory' | 'death' | 'crit' | 'miss' | 'heal' | 'skill' | 'encounter' | 'type' | 'secret' | 'menu_select' | 'descent' | 'heartbeat_thump' | 'seal' | 'eye_blink' | 'eye_glow') {
     if (!this.ctx || !this.masterGain) return;
     if (this.ctx.state === 'suspended') this.ctx.resume();
     
@@ -205,10 +349,11 @@ export class SoundManager {
 
     switch (type) {
       case 'move':
+        // Footstep: deeper, shorter thud
         osc.type = 'triangle';
-        osc.frequency.setValueAtTime(120, t);
-        osc.frequency.exponentialRampToValueAtTime(40, t + 0.1);
-        g.gain.setValueAtTime(0.3, t);
+        osc.frequency.setValueAtTime(80, t);
+        osc.frequency.exponentialRampToValueAtTime(30, t + 0.1);
+        g.gain.setValueAtTime(0.2, t);
         g.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
         osc.start(t);
         osc.stop(t + 0.1);
@@ -241,10 +386,11 @@ export class SoundManager {
         osc.stop(t + 1.5);
         break;
       case 'turn':
+        // Quieter shuffle
         osc.type = 'sine';
         osc.frequency.setValueAtTime(200, t);
         osc.frequency.linearRampToValueAtTime(150, t + 0.05);
-        g.gain.setValueAtTime(0.1, t);
+        g.gain.setValueAtTime(0.05, t);
         g.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
         osc.start(t);
         osc.stop(t + 0.05);
@@ -345,6 +491,247 @@ export class SoundManager {
         osc.start(t);
         osc.stop(t + 0.05);
         break;
+      case 'menu_select':
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, t);
+        g.gain.setValueAtTime(0.1, t);
+        g.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+        osc.start(t);
+        osc.stop(t + 0.1);
+        break;
+      case 'heartbeat_thump':
+        const playThump = (startTime: number, volume: number) => {
+            // Main deep thump tone
+            const thumpOsc = this.ctx!.createOscillator();
+            thumpOsc.type = 'sine';
+            thumpOsc.frequency.setValueAtTime(90, startTime); // Deeper start
+            thumpOsc.frequency.exponentialRampToValueAtTime(35, startTime + 0.25);
+    
+            const thumpGain = this.ctx!.createGain();
+            thumpGain.gain.setValueAtTime(0, startTime);
+            thumpGain.gain.linearRampToValueAtTime(volume * 1.2, startTime + 0.02); // Punchy gain for effect
+            thumpGain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.4);
+    
+            thumpOsc.connect(thumpGain);
+            thumpGain.connect(this.masterGain!);
+            thumpOsc.start(startTime);
+            thumpOsc.stop(startTime + 0.4);
+    
+            // Visceral squelch with pink noise
+            const noiseBuffer = this.createPinkNoise();
+            if (!noiseBuffer) return;
+            const noise = this.ctx!.createBufferSource();
+            noise.buffer = noiseBuffer;
+    
+            const filter = this.ctx!.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.Q.value = 7; // Lowered Q value for a wetter, less sharp sound
+            filter.frequency.setValueAtTime(700, startTime);
+            filter.frequency.exponentialRampToValueAtTime(90, startTime + 0.2);
+    
+            const env = this.ctx!.createGain();
+            env.gain.setValueAtTime(0, startTime);
+            env.gain.linearRampToValueAtTime(volume * 0.8, startTime + 0.03);
+            env.gain.exponentialRampToValueAtTime(0.01, startTime + 0.35);
+    
+            noise.connect(filter);
+            filter.connect(env);
+            env.connect(this.masterGain!);
+            noise.start(startTime);
+            noise.stop(startTime + 0.4);
+        };
+    
+        // Slower, heavier "lub-dub" for the one-shot effect
+        playThump(t, 0.7);
+        playThump(t + 0.4, 0.5); // Slower second beat
+        return;
+      case 'seal':
+        // Layer 1: Ominous Drone
+        const droneOsc = this.ctx.createOscillator();
+        droneOsc.type = 'sawtooth';
+        droneOsc.frequency.setValueAtTime(80, t);
+        droneOsc.frequency.linearRampToValueAtTime(70, t + 1.8);
+        const droneGain = this.ctx.createGain();
+        droneGain.gain.setValueAtTime(0, t);
+        droneGain.gain.linearRampToValueAtTime(0.25, t + 0.5);
+        droneGain.gain.linearRampToValueAtTime(0, t + 1.8);
+        droneOsc.connect(droneGain);
+        droneGain.connect(this.masterGain);
+        droneOsc.start(t);
+        droneOsc.stop(t + 1.8);
+
+        // Layer 2: Scraping noise
+        const scrapeNoise = this.createNoiseSource();
+        const scrapeFilter = this.ctx.createBiquadFilter();
+        scrapeFilter.type = 'bandpass';
+        scrapeFilter.Q.value = 15;
+        scrapeFilter.frequency.setValueAtTime(1200, t + 0.2);
+        scrapeFilter.frequency.exponentialRampToValueAtTime(400, t + 1.2);
+        const scrapeGain = this.ctx.createGain();
+        scrapeGain.gain.setValueAtTime(0, t + 0.2);
+        scrapeGain.gain.linearRampToValueAtTime(0.1, t + 0.3);
+        scrapeGain.gain.exponentialRampToValueAtTime(0.01, t + 1.2);
+        scrapeNoise.connect(scrapeFilter);
+        scrapeFilter.connect(scrapeGain);
+        scrapeGain.connect(this.masterGain);
+        scrapeNoise.start(t + 0.2);
+        scrapeNoise.stop(t + 1.2);
+
+        // Layer 3: Final Clunk
+        const clunkOsc = this.ctx.createOscillator();
+        clunkOsc.type = 'square';
+        clunkOsc.frequency.setValueAtTime(150, t + 1.4);
+        clunkOsc.frequency.exponentialRampToValueAtTime(40, t + 1.6);
+        const clunkGain = this.ctx.createGain();
+        clunkGain.gain.setValueAtTime(0, t + 1.4);
+        clunkGain.gain.linearRampToValueAtTime(0.4, t + 1.41);
+        clunkGain.gain.exponentialRampToValueAtTime(0.01, t + 1.7);
+        clunkOsc.connect(clunkGain);
+        clunkGain.connect(this.masterGain);
+        clunkOsc.start(t + 1.4);
+        clunkOsc.stop(t + 1.7);
+        return;
+      case 'eye_blink':
+        // A low-pass filtered noise with a short, sharp envelope
+        const noiseBlink = this.createNoiseSource();
+        const filterBlink = this.ctx.createBiquadFilter();
+        filterBlink.type = 'lowpass';
+        filterBlink.frequency.value = 400;
+        filterBlink.Q.value = 5;
+        
+        const envBlink = this.ctx.createGain();
+        envBlink.gain.setValueAtTime(0, t);
+        envBlink.gain.linearRampToValueAtTime(0.3, t + 0.02);
+        envBlink.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+        
+        noiseBlink.connect(filterBlink);
+        filterBlink.connect(envBlink);
+        envBlink.connect(this.masterGain);
+        
+        noiseBlink.start(t);
+        noiseBlink.stop(t + 0.15);
+        return;
+      
+      case 'eye_glow':
+        // Layer 1: Macabre Drone
+        const eyeDroneFreq1 = 80;
+        const eyeDroneOsc1 = this.ctx.createOscillator();
+        eyeDroneOsc1.type = 'sawtooth';
+        eyeDroneOsc1.frequency.value = eyeDroneFreq1;
+        eyeDroneOsc1.detune.value = -5; // Detune for thickness
+
+        const eyeDroneOsc2 = this.ctx.createOscillator();
+        eyeDroneOsc2.type = 'sawtooth';
+        eyeDroneOsc2.frequency.value = eyeDroneFreq1;
+        eyeDroneOsc2.detune.value = 5;
+
+        const eyeDroneFilter = this.ctx.createBiquadFilter();
+        eyeDroneFilter.type = 'lowpass';
+        eyeDroneFilter.frequency.value = 400;
+
+        const eyeDroneGain = this.ctx.createGain();
+        eyeDroneGain.gain.setValueAtTime(0, t);
+        eyeDroneGain.gain.linearRampToValueAtTime(0.25, t + 0.5); // Slow fade in
+        eyeDroneGain.gain.linearRampToValueAtTime(0, t + 1.5); // Fade out
+
+        eyeDroneOsc1.connect(eyeDroneFilter);
+        eyeDroneOsc2.connect(eyeDroneFilter);
+        eyeDroneFilter.connect(eyeDroneGain);
+        eyeDroneGain.connect(this.masterGain);
+
+        eyeDroneOsc1.start(t);
+        eyeDroneOsc1.stop(t + 1.5);
+        eyeDroneOsc2.start(t);
+        eyeDroneOsc2.stop(t + 1.5);
+
+        // Layer 2: Viscous/Humid Squelch
+        const eyeNoiseBuffer = this.createPinkNoise();
+        if (eyeNoiseBuffer) {
+            const noise = this.ctx.createBufferSource();
+            noise.buffer = eyeNoiseBuffer;
+            noise.loop = true;
+
+            const squelchFilter = this.ctx.createBiquadFilter();
+            squelchFilter.type = 'bandpass';
+            squelchFilter.frequency.value = 150;
+            squelchFilter.Q.value = 15; // High Q for resonant "gloop" sound
+
+            // LFO to modulate the filter frequency for a "gurgling" effect
+            const lfo = this.ctx.createOscillator();
+            lfo.type = 'sine';
+            lfo.frequency.value = 2; // Slow gurgle
+
+            const lfoGain = this.ctx.createGain();
+            lfoGain.gain.value = 100; // Modulation depth
+
+            lfo.connect(lfoGain);
+            lfoGain.connect(squelchFilter.frequency);
+            
+            const squelchGain = this.ctx.createGain();
+            squelchGain.gain.setValueAtTime(0, t);
+            squelchGain.gain.linearRampToValueAtTime(0.4, t + 0.4);
+            squelchGain.gain.linearRampToValueAtTime(0, t + 1.5);
+
+            noise.connect(squelchFilter);
+            squelchFilter.connect(squelchGain);
+            squelchGain.connect(this.masterGain);
+
+            noise.start(t);
+            noise.stop(t + 1.5);
+            lfo.start(t);
+            lfo.stop(t + 1.5);
+        }
+        return;
+      case 'descent':
+        // Deep falling sound
+        const fallOsc = this.ctx.createOscillator();
+        fallOsc.type = 'sawtooth';
+        fallOsc.frequency.setValueAtTime(400, t);
+        fallOsc.frequency.exponentialRampToValueAtTime(50, t + 1.5);
+        
+        const fallGain = this.ctx.createGain();
+        fallGain.gain.setValueAtTime(0.4, t);
+        fallGain.gain.exponentialRampToValueAtTime(0.01, t + 1.5);
+        
+        fallOsc.connect(fallGain);
+        fallGain.connect(this.masterGain);
+        fallOsc.start(t);
+        fallOsc.stop(t + 1.5);
+
+        // Whoosh noise
+        const noise = this.createNoiseSource();
+        const noiseFilter = this.ctx.createBiquadFilter();
+        noiseFilter.type = 'bandpass';
+        noiseFilter.Q.value = 5;
+        noiseFilter.frequency.setValueAtTime(2000, t);
+        noiseFilter.frequency.exponentialRampToValueAtTime(100, t + 1);
+
+        const noiseGain = this.ctx.createGain();
+        noiseGain.gain.setValueAtTime(0.2, t);
+        noiseGain.gain.exponentialRampToValueAtTime(0.01, t + 1.2);
+        
+        noise.connect(noiseFilter);
+        noiseFilter.connect(noiseGain);
+        noiseGain.connect(this.masterGain);
+        noise.start(t);
+        noise.stop(t + 1.2);
+
+        // Impact
+        const impactOsc = this.ctx.createOscillator();
+        impactOsc.type = 'square';
+        impactOsc.frequency.setValueAtTime(80, t + 1.0);
+        impactOsc.frequency.exponentialRampToValueAtTime(20, t + 1.5);
+        
+        const impactGain = this.ctx.createGain();
+        impactGain.gain.setValueAtTime(0, t + 1.0);
+        impactGain.gain.linearRampToValueAtTime(0.5, t + 1.05);
+        impactGain.gain.exponentialRampToValueAtTime(0.01, t + 1.5);
+        
+        impactOsc.connect(impactGain);
+        impactGain.connect(this.masterGain);
+        impactOsc.start(t + 1.0);
+        impactOsc.stop(t + 1.5);
+        return;
     }
   }
 

@@ -245,7 +245,10 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
       if (!activeChar) return { val: 0, label: '-', color: 'text-gray-500' };
       const level = activeChar.skillLevels[skill.id] || 1;
       const stats = calculateStats(activeChar);
-      const levelMult = 1 + (level - 1) * 0.2;
+      
+      // Updated Scaling for UI to match logic
+      const multipliers = [1.0, 1.15, 1.30, 1.50];
+      const levelMult = multipliers[Math.min(3, Math.max(0, level - 1))];
       
       let val = 0;
       let label = 'DMG';

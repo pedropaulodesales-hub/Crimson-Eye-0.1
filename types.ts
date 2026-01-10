@@ -30,10 +30,12 @@ export interface Skill {
 
 export type ItemType = 'weapon' | 'helm' | 'chest' | 'gloves' | 'boots' | 'accessory' | 'consumable' | 'material';
 
+export type EquipmentWeight = 'LIGHT' | 'MEDIUM' | 'HEAVY';
+
 export type ItemRarity = 'NORMAL' | 'UNCOMMON' | 'MAGIC' | 'RARE' | 'LEGENDARY' | 'UNIQUE';
 
 export interface ItemMod {
-  stat: 'str' | 'int' | 'dex' | 'vit' | 'cha' | 'atk' | 'def' | 'mAtk' | 'mDef' | 'hp' | 'mp' | 'critChance';
+  stat: 'str' | 'int' | 'dex' | 'vit' | 'cha' | 'atk' | 'def' | 'mAtk' | 'mDef' | 'hp' | 'mp' | 'critChance' | 'eva';
   value: number;
   name: string;
 }
@@ -42,9 +44,11 @@ export interface Item {
   id: string;
   name: string;
   type: ItemType;
+  weight?: EquipmentWeight; // New property for Aptitude System
+  minLevel?: number; // Level Requirement
   value: number;
-  stat?: number;
-  magicStat?: number;
+  stat?: number; // Physical Stat (ATK for weapons, DEF for armor)
+  magicStat?: number; // Magical Stat (M.ATK for weapons, M.DEF for armor)
   description: string;
   rarity?: ItemRarity;
   mods?: ItemMod[];
@@ -72,6 +76,7 @@ export interface Entity {
   vit: number;
   cha: number;
   buffs: Buff[];
+  avatar?: string;
 }
 
 export interface DerivedStats {
@@ -95,8 +100,8 @@ export interface DerivedStats {
 export interface Player extends Entity {
   id: string;
   class: PlayerClass;
-  avatar: string;
   xp: number;
+  skillPoints: number;
   inventory: Item[];
   weapon: Item | null;
   helm: Item | null;
@@ -105,8 +110,8 @@ export interface Player extends Entity {
   boots: Item | null;
   accessory: Item | null;
   skills: Skill[];
-  skillPoints: number;
-  skillLevels: Record<string, number>; // ID -> Level (1-3)
+  skillLevels: Record<string, number>;
+  avatar: string;
 }
 
 export interface Enemy extends Entity {
@@ -119,20 +124,6 @@ export interface Enemy extends Entity {
   prompt: string;
   avatar?: string;
   stolenFrom?: boolean;
-}
-
-export type GameState = 'TITLE' | 'LORE' | 'CREATION' | 'EXPLORE' | 'COMBAT' | 'DEATH' | 'INVENTORY' | 'MERCHANT' | 'SKILLS' | 'VICTORY';
-
-export interface LogMessage {
-  text: string;
-  type: 'info' | 'player_action' | 'enemy_action' | 'damage' | 'heal' | 'crit' | 'miss' | 'loot' | 'level' | 'combat';
-}
-
-export interface CombatResult {
-  targetId: string;
-  value: string | number;
-  type: 'damage' | 'heal' | 'miss' | 'crit' | 'block';
-  timestamp: number;
 }
 
 export interface ClassDefinition {
@@ -148,4 +139,18 @@ export interface ClassDefinition {
   cha: number;
   skillPool: Skill[];
   starterSkillIds: string[];
+}
+
+export type GameState = 'TITLE' | 'LORE' | 'CREATION' | 'EXPLORE' | 'COMBAT' | 'INVENTORY' | 'SKILLS' | 'MERCHANT' | 'DEATH' | 'VICTORY';
+
+export interface LogMessage {
+  text: string;
+  type: 'info' | 'damage' | 'heal' | 'miss' | 'crit' | 'block' | 'loot' | 'level' | 'combat' | 'player_action';
+}
+
+export interface CombatResult {
+  victory: boolean;
+  xp: number;
+  gold: number;
+  items: Item[];
 }

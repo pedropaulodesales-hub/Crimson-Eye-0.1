@@ -1,5 +1,7 @@
+
 import React, { useState } from 'react';
 import { Item, ItemRarity, Player, DerivedStats } from '../types';
+import { calculateCP } from './InventoryScreen'; // Import the centralized/precise function from Inventory
 
 interface MerchantScreenProps {
   merchantInventory: Item[];
@@ -29,28 +31,6 @@ const RARITY_BG: Record<ItemRarity, string> = {
   RARE: 'bg-yellow-900/10',
   LEGENDARY: 'bg-orange-900/10',
   UNIQUE: 'bg-purple-900/10'
-};
-
-const calculateCP = (item: Item): number => {
-  if (item.type === 'consumable' || item.type === 'material') return 0;
-  
-  let cp = 0;
-  // Base Stat Weight
-  cp += (item.stat || 0) * 12;
-  cp += (item.magicStat || 0) * 12;
-  
-  // Mod Weight
-  item.mods?.forEach(m => {
-      cp += Math.abs(m.value) * 8;
-  });
-
-  // Rarity Bonus
-  const rarityBonus: Record<string, number> = {
-    'NORMAL': 0, 'UNCOMMON': 15, 'MAGIC': 35, 'RARE': 70, 'LEGENDARY': 150, 'UNIQUE': 300
-  };
-  cp += rarityBonus[item.rarity || 'NORMAL'] || 0;
-
-  return Math.floor(cp);
 };
 
 const MerchantScreen: React.FC<MerchantScreenProps> = ({ 

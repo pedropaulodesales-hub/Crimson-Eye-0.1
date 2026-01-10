@@ -26,7 +26,7 @@ const IconTraveler = () => (
 
 const IconStairs = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full p-[10%] text-cyan-400">
-    <path d="M19 5v2h-4V5h4zM9 13v2H5v-2h4zm6-4v2h-4V9h4zm-2 8v2H9v-2h4zm6-4v2h-4v-2h4zM5 5v2h4V5H5zm0 14h4v-2H5v2z" />
+    <path d="M7 2h2v20H7V2zm8 0h2v20h-2V2zM9 6h6v2H9V6zm0 4h6v2H9v-2zm0 4h6v2H9v-2zm0 4h6v2H9v-2z" />
   </svg>
 );
 

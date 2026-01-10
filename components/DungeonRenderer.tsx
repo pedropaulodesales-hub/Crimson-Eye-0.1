@@ -27,10 +27,12 @@ const DungeonRenderer: React.FC<DungeonRendererProps> = ({ pos, dir, floor, merc
     
     const resizeObserver = new ResizeObserver(entries => {
       for (const entry of entries) {
-        if (canvasRef.current) {
+        // Use requestAnimationFrame to prevent a ResizeObserver loop error.
+        window.requestAnimationFrame(() => {
+          if (!canvasRef.current) return;
           canvasRef.current.width = entry.contentRect.width;
           canvasRef.current.height = entry.contentRect.height;
-        }
+        });
       }
     });
 
@@ -157,7 +159,13 @@ const DungeonRenderer: React.FC<DungeonRendererProps> = ({ pos, dir, floor, merc
         {x: near.x0, y: near.y1}, {x: near.x1, y: near.y1},
         {x: far.x1, y: far.y1}, {x: far.x0, y: far.y1}
       ];
-      drawPolygon(floorPoints, `rgba(0, ${15 * opacity}, 0, 1)`, `rgba(51, 255, 51, ${0.1 * opacity})`);
+      
+      // If the tile is stairs (3), draw a dark void on the floor
+      if (frontCell === 3) {
+          drawPolygon(floorPoints, `rgba(10, 10, 10, 1)`, `rgba(0, 255, 255, ${0.3 * opacity})`);
+      } else {
+          drawPolygon(floorPoints, `rgba(0, ${15 * opacity}, 0, 1)`, `rgba(51, 255, 51, ${0.1 * opacity})`);
+      }
 
       const ceilPoints = [
         {x: near.x0, y: near.y0}, {x: near.x1, y: near.y0},
@@ -227,16 +235,20 @@ const DungeonRenderer: React.FC<DungeonRendererProps> = ({ pos, dir, floor, merc
         } else if (frontCell === 3) { // Stairs
           if (stairsImg) {
             const aspect = stairsImg.width / stairsImg.height;
-            const drawW = objSize * 5; 
+            const drawW = objSize * 6; // Wider
             const drawH = drawW / aspect;
             
             // Stairs static + slight glow pulse
             const pulse = 0.9 + Math.sin(phaseRef.current * 0.5) * 0.1;
             ctx.globalAlpha = pulse * opacity;
-            ctx.shadowBlur = 15;
+            ctx.shadowBlur = 10;
             ctx.shadowColor = "#00ffff"; 
             
-            ctx.drawImage(stairsImg, centerX - drawW/2, centerY - drawH/2, drawW, drawH);
+            // Position lower to look like it's on the ground/trapdoor
+            // centerY is roughly horizon/middle. Moving it down (+) places it on the floor.
+            const floorOffset = drawH * 0.4;
+            
+            ctx.drawImage(stairsImg, centerX - drawW/2, centerY - drawH/2 + floorOffset, drawW, drawH);
           } else {
             // Fallback
             ctx.beginPath();
