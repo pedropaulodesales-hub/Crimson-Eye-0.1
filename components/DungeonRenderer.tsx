@@ -161,6 +161,56 @@ export const DungeonRenderer: React.FC<DungeonRendererProps> = ({ pos, dir, floo
 
       const floorPoints = [{x: near.x0, y: near.y1}, {x: near.x1, y: near.y1}, {x: far.x1, y: far.y1}, {x: far.x0, y: far.y1}];
       drawPolygon(floorPoints, `rgba(0, ${15 * opacity}, 0, 1)`, `rgba(51, 255, 51, ${0.1 * opacity})`);
+      
+      const floorTile = getTile(currentX, currentY);
+      if (floorTile === 7) {
+        // --- DETAILED FOUNTAIN RENDER ---
+        const holeMarginNear = (near.x1 - near.x0) * 0.2;
+        const holeMarginFar = (far.x1 - far.x0) * 0.2;
+        
+        // 1. Draw the dark pit for depth
+        const pitPoints = [
+            {x: near.x0 + holeMarginNear, y: near.y1},
+            {x: near.x1 - holeMarginNear, y: near.y1},
+            {x: far.x1 - holeMarginFar, y: far.y1},
+            {x: far.x0 + holeMarginFar, y: far.y1}
+        ];
+        drawPolygon(pitPoints, `rgba(0,5,10, ${opacity})`, `rgba(0,0,0,0)`);
+
+        // 2. Draw the stone rim around the pit
+        const rimWidthNear = (near.x1 - near.x0) * 0.05;
+        const rimWidthFar = (far.x1 - far.x0) * 0.05;
+        const rimOuterPoints = [
+            {x: near.x0 + holeMarginNear - rimWidthNear, y: near.y1},
+            {x: near.x1 - holeMarginNear + rimWidthNear, y: near.y1},
+            {x: far.x1 - holeMarginFar + rimWidthFar, y: far.y1},
+            {x: far.x0 + holeMarginFar - rimWidthFar, y: far.y1}
+        ];
+        // Create a path for the rim (outer minus inner)
+        ctx.beginPath();
+        ctx.moveTo(rimOuterPoints[0].x, rimOuterPoints[0].y);
+        ctx.lineTo(rimOuterPoints[1].x, rimOuterPoints[1].y);
+        ctx.lineTo(rimOuterPoints[2].x, rimOuterPoints[2].y);
+        ctx.lineTo(rimOuterPoints[3].x, rimOuterPoints[3].y);
+        ctx.closePath();
+        // Inner path (counter-clockwise to create a hole)
+        ctx.moveTo(pitPoints[3].x, pitPoints[3].y);
+        ctx.lineTo(pitPoints[2].x, pitPoints[2].y);
+        ctx.lineTo(pitPoints[1].x, pitPoints[1].y);
+        ctx.lineTo(pitPoints[0].x, pitPoints[0].y);
+        ctx.closePath();
+        ctx.fillStyle = `rgba(100, 100, 100, ${opacity})`;
+        ctx.fill();
+        ctx.strokeStyle = `rgba(50, 50, 50, ${opacity})`;
+        ctx.stroke(new Path2D(ctx.currentPath));
+
+        // 3. Draw the animated water on top
+        const waterPhase1 = Math.sin(phaseRef.current * 2) * 8;
+        const waterPhase2 = Math.cos(phaseRef.current * 1.5) * 5;
+        const waterColor = `rgba(${40 + waterPhase1}, ${90 + waterPhase2}, ${180 + waterPhase1}, ${0.8 * opacity})`;
+        drawPolygon(pitPoints, waterColor, `rgba(100,150,255, ${0.5 * opacity})`);
+      }
+
       const ceilPoints = [{x: near.x0, y: near.y0}, {x: near.x1, y: near.y0}, {x: far.x1, y: far.y0}, {x: far.x0, y: far.y0}];
       drawPolygon(ceilPoints, `rgba(0, ${10 * opacity}, 0, 1)`, `rgba(51, 255, 51, ${0.05 * opacity})`);
 
@@ -169,8 +219,6 @@ export const DungeonRenderer: React.FC<DungeonRendererProps> = ({ pos, dir, floo
         
         if (tileId === 10) {
             texture = doorImg;
-        } else if (tileId === 7) {
-            texture = fountainImg;
         } else {
             if (floor === -1) {
                 texture = wallCityImg;
@@ -185,10 +233,10 @@ export const DungeonRenderer: React.FC<DungeonRendererProps> = ({ pos, dir, floo
         drawPolygon(points, fill, `rgba(51, 255, 51, ${opacity})`);
       };
 
-      // Treat ID 1 (Wall), ID 10 (Door), and ID 7 (Fountain) as geometry blockers
-      const isLeftWall = leftCell === 1 || leftCell === 10 || leftCell === 7;
-      const isRightWall = rightCell === 1 || rightCell === 10 || rightCell === 7;
-      const isFrontWall = frontCell === 1 || frontCell === 10 || frontCell === 7;
+      // Treat ID 1 (Wall) and ID 10 (Door) as geometry blockers
+      const isLeftWall = leftCell === 1 || leftCell === 10;
+      const isRightWall = rightCell === 1 || rightCell === 10;
+      const isFrontWall = frontCell === 1 || frontCell === 10;
 
       if (isLeftWall) {
         const leftPoints = [{x: near.x0, y: near.y0}, {x: far.x0, y: far.y0}, {x: far.x0, y: far.y1}, {x: near.x0, y: near.y1}];
@@ -202,7 +250,7 @@ export const DungeonRenderer: React.FC<DungeonRendererProps> = ({ pos, dir, floo
       if (isFrontWall) {
         const frontPoints = [{x: far.x0, y: far.y0}, {x: far.x1, y: far.y0}, {x: far.x1, y: far.y1}, {x: far.x0, y: far.y1}];
         drawWall(frontPoints, frontCell);
-      } else if (frontCell > 1) {
+      } else if (frontCell > 1 && frontCell !== 7) {
         ctx.save();
         const centerX = w / 2;
         const bob = Math.sin(phaseRef.current) * (5 / (d + 1));
@@ -237,7 +285,6 @@ export const DungeonRenderer: React.FC<DungeonRendererProps> = ({ pos, dir, floo
             case 5: drawSprite(merchImg, '#33ff33'); break;
             case 6: drawSprite(travelerImg, '#d97706'); break;
             case 8: drawSprite(villagerImg, '#ffdada'); break;
-            // Case 10 (Door) and 7 (Fountain) are now handled as walls
             case 11: drawSprite(stairsUpImg, '#33ff33', true); break;
             case 12: drawSprite(ghostImg, '#00ffff'); break;
             default:

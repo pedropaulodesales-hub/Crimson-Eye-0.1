@@ -12,18 +12,6 @@ interface MinimapProps {
 }
 
 // Retro SVG Icons
-const IconNPC = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full p-[10%] text-fuchsia-400">
-    <path d="M12 2a2 2 0 100 4 2 2 0 000-4zm-3 7c-1.1 0-2 .9-2 2v4h2v7h6v-7h2v-4c0-1.1-.9-2-2-2H9z" />
-  </svg>
-);
-
-const IconTraveler = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full p-[10%] text-amber-600">
-    <path d="M12 2C9 2 7 3.5 7 6v4h10V6c0-2.5-2-4-5-4z M10 12h4v8h-4z" />
-  </svg>
-);
-
 const IconStairsDown = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full p-[10%] text-cyan-400">
     <path d="M20 4h-4v4h-4v4h-4v4H4v4h4v-4h4v-4h4v-4h4V4z" />
@@ -42,24 +30,6 @@ const IconChest = () => (
   </svg>
 );
 
-const IconMerchant = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full p-[10%] text-green-400">
-    <path d="M13 2.05v3.03c3.39.49 6 3.39 6 6.92 0 .9-.18 1.75-.48 2.54l2.6 1.53c.56-1.24.88-2.62.88-4.07 0-5.18-3.95-9.45-9-9.95zM12 19c-3.87 0-7-3.13-7-7 0-3.53 2.61-6.43 6-6.92V2.05c-5.05.5-9 4.77-9 9.95 0 5.52 4.48 10 10 10 3.53 0 6.62-1.85 8.36-4.64l-2.6-1.53C16.51 17.7 14.4 19 12 19z" />
-  </svg>
-);
-
-const IconFountain = () => (
-    <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full p-[10%] text-red-500 animate-pulse">
-        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-    </svg>
-);
-
-const IconVillager = () => (
-    <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full p-[10%] text-yellow-200">
-        <path d="M12 5.5A2.5 2.5 0 0114.5 8 2.5 2.5 0 0112 10.5 2.5 2.5 0 019.5 8 2.5 2.5 0 0112 5.5M5 8c0-3.87 3.13-7 7-7s7 3.13 7 7v1.5c0 .28-.22.5-.5.5h-13c-.28 0-.5-.22-.5-.5V8m14 4v1h-2v6h-2v-6H9v6H7v-6H5v-1c0-1.11.89-2 2-2h10c1.11 0 2 .89 2 2z" />
-    </svg>
-);
-
 const IconDoor = () => (
     <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full p-[10%] text-orange-400">
         <path d="M18 4v16H6V4h12m0-2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 9h-2v-2h2v2z"/>
@@ -75,7 +45,7 @@ const Minimap: React.FC<MinimapProps> = ({ pos, dir, floor, explored, mapData, e
   const renderCell = (x: number, y: number) => {
     const isPlayer = x === pos.x && y === pos.y;
     const key = `${x},${y}`;
-    const isExplored = explored.has(key);
+    const isExplored = floor === -1 || explored.has(key); // Town is always explored
     // Boundary check for small minimap logic, full map relies on loop limits
     const tile = (y >= 0 && y < map.length && x >= 0 && x < map[0].length) ? map[y][x] : 1;
 
@@ -165,42 +135,28 @@ const Minimap: React.FC<MinimapProps> = ({ pos, dir, floor, explored, mapData, e
       case 5: // Merchant
         return (
           <div key={key} className={`${commonClasses} bg-green-950/20 border border-green-900/40`}>
-            <IconMerchant />
-            <div className="absolute inset-0 bg-green-400/5 animate-pulse rounded-sm" />
+            <div className="w-full h-full flex items-center justify-center font-black text-xl text-green-400">!</div>
           </div>
         );
+      case 2: // Generic NPC
       case 6: // Traveler
+      case 8: // Villager
+      case 12: // Lore NPC (Ghost)
         return (
-          <div key={key} className={`${commonClasses} bg-amber-950/20 border border-amber-900/40`}>
-            <IconTraveler />
-            <div className="absolute inset-0 bg-amber-600/5 animate-pulse rounded-sm" />
+          <div key={key} className={`${commonClasses} bg-cyan-950/20 border border-cyan-900/40`}>
+            <div className="w-full h-full flex items-center justify-center font-black text-xl text-cyan-300">!</div>
           </div>
         );
       case 7: // Fountain
         return (
           <div key={key} className={`${commonClasses} bg-blue-950/20 border border-blue-900/40`}>
-            <IconFountain />
-            <div className="absolute inset-0 bg-blue-400/5 animate-pulse rounded-sm" />
-          </div>
-        );
-      case 8: // Villager
-        return (
-          <div key={key} className={`${commonClasses} bg-yellow-950/10 border border-yellow-200/20`}>
-            <IconVillager />
-            <div className="absolute inset-0 bg-yellow-200/5 animate-pulse rounded-sm" />
+            <div className="w-full h-full flex items-center justify-center font-black text-xl text-red-500 animate-pulse">♥</div>
           </div>
         );
       case 10: // Door
         return (
           <div key={key} className={`${commonClasses} bg-orange-950/20 border border-orange-900/40`}>
             <IconDoor />
-          </div>
-        );
-       case 12: // Lore NPC (Ghost)
-        return (
-          <div key={key} className={`${commonClasses} bg-cyan-950/10 border border-cyan-200/20`}>
-            <IconNPC />
-            <div className="absolute inset-0 bg-cyan-200/5 animate-pulse rounded-sm" />
           </div>
         );
       default: // Empty

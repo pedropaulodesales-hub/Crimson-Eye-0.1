@@ -58,7 +58,7 @@ export interface Buff {
   id: string; // Unique ID for stacking (e.g. 'buff_def')
   name: string;
   type: 'buff' | 'debuff';
-  stat: 'str' | 'int' | 'dex' | 'vit' | 'atk' | 'def' | 'mAtk' | 'mDef' | 'acc' | 'eva' | 'critChance' | 'maxHp';
+  stat: 'str' | 'int' | 'dex' | 'vit' | 'atk' | 'def' | 'mAtk' | 'mDef' | 'acc' | 'eva' | 'critChance' | 'maxHp' | 'damage_taken_increase';
   value: number;
   duration: number; // turns
 }
@@ -77,6 +77,7 @@ export interface Entity {
   cha: number;
   buffs: Buff[];
   avatar?: string;
+  shieldHp?: number;
 }
 
 export interface DerivedStats {
@@ -124,6 +125,7 @@ export interface Enemy extends Entity {
   prompt: string;
   avatar?: string;
   stolenFrom?: boolean;
+  isBoss?: boolean;
 }
 
 export interface ClassDefinition {
@@ -141,7 +143,7 @@ export interface ClassDefinition {
   starterSkillIds: string[];
 }
 
-export type GameState = 'TITLE' | 'LORE' | 'CREATION' | 'EXPLORE' | 'COMBAT' | 'INVENTORY' | 'SKILLS' | 'MERCHANT' | 'DEATH' | 'VICTORY';
+export type GameState = 'TITLE' | 'LORE' | 'CREATION' | 'GENERATING' | 'EXPLORE' | 'COMBAT' | 'INVENTORY' | 'SKILLS' | 'MERCHANT' | 'DEATH' | 'VICTORY';
 
 export interface LogMessage {
   text: string;
@@ -153,4 +155,18 @@ export interface CombatResult {
   xp: number;
   gold: number;
   items: Item[];
+}
+
+export interface SaveData {
+  party: Player[];
+  sharedInventory: Item[];
+  materialsPouch: Item[];
+  gold: number;
+  currentFloor: number;
+  currentPos: Position;
+  currentDir: Direction;
+  explored: Record<number, string[]>;
+  defeatedBosses: number[];
+  hasMetMerchant: boolean;
+  discoveredFountains: number[];
 }

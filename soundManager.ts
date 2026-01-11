@@ -11,28 +11,86 @@ export class SoundManager {
     if (this.ctx) return;
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     this.ctx = new AudioContextClass();
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(e => console.error("AudioContext resume failed", e));
+    }
     this.masterGain = this.ctx.createGain();
     this.masterGain.connect(this.ctx.destination);
     this.masterGain.gain.value = 0.3;
   }
 
-  playMusic(floor: number) {
+  playTownTheme() {
     if (!this.ctx || !this.masterGain) return;
     if (this.ctx.state === 'suspended') this.ctx.resume();
 
-    // Define Zones
-    // Zone 1: Floors 1-5 (Index 0-4)
-    const zone = floor < 5 ? 1 : 2;
-
-    // If music for this zone is already playing, do nothing
-    if (this.currentMusicZone === zone) return;
+    const TOWN_ZONE = 100;
+    if (this.currentMusicZone === TOWN_ZONE) return;
 
     this.stopMusic();
-    this.currentMusicZone = zone;
+    this.currentMusicZone = TOWN_ZONE;
 
-    if (zone === 1) {
-        this.playDungeonTheme();
-    }
+    const t = this.ctx.currentTime;
+    const themeGain = this.ctx.createGain();
+    themeGain.gain.setValueAtTime(0, t);
+    themeGain.gain.linearRampToValueAtTime(0.5, t + 8); // Very slow fade in
+    themeGain.connect(this.masterGain);
+    this.musicNodes.push(themeGain);
+
+    // --- Melancholic Pad ---
+    const padFreqs = [55.00, 82.41]; // A1, E2
+    padFreqs.forEach(f => {
+        const osc = this.ctx!.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.value = f;
+        osc.detune.value = (Math.random() - 0.5) * 8;
+        const filter = this.ctx!.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 250;
+        const gain = this.ctx!.createGain();
+        gain.gain.value = 0.15;
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(themeGain);
+        osc.start(t);
+        this.musicNodes.push(osc, filter, gain);
+    });
+
+    // --- Arpeggio Sequencer ---
+    const scale = [261.63, 392.00, 440.00, 329.63]; // C4, G4, A4, E4
+    let noteIndex = 0;
+
+    const playNote = () => {
+        if (!this.ctx || this.currentMusicZone !== TOWN_ZONE) return;
+        
+        const now = this.ctx.currentTime;
+        const freq = scale[noteIndex % scale.length];
+        noteIndex++;
+
+        const osc = this.ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+
+        const env = this.ctx.createGain();
+        env.gain.setValueAtTime(0, now);
+        env.gain.linearRampToValueAtTime(0.2, now + 0.1);
+        env.gain.exponentialRampToValueAtTime(0.001, now + 1.8);
+
+        const panner = this.ctx.createStereoPanner();
+        panner.pan.value = (Math.random() - 0.5) * 1.5;
+
+        osc.connect(env);
+        env.connect(panner);
+        panner.connect(themeGain);
+
+        osc.start(now);
+        osc.stop(now + 2);
+
+        this.musicNodes.push(osc, env, panner);
+
+        this.sequencerTimer = window.setTimeout(playNote, 800 + Math.random() * 400);
+    };
+
+    playNote();
   }
 
   playLoreAmbience() {
@@ -40,10 +98,11 @@ export class SoundManager {
     if (this.ctx.state === 'suspended') this.ctx.resume();
     
     // Zone 0: Haunted Intro (Title/Lore/Creation)
-    if (this.currentMusicZone === 0) return;
+    const LORE_ZONE = 0;
+    if (this.currentMusicZone === LORE_ZONE) return;
 
     this.stopMusic();
-    this.currentMusicZone = 0;
+    this.currentMusicZone = LORE_ZONE;
 
     const t = this.ctx.currentTime;
     const mainGain = this.ctx.createGain();
@@ -86,7 +145,7 @@ export class SoundManager {
 
     // --- LAYER 2: PULSATING HEART (The Core) ---
     const triggerHeartbeat = () => {
-        if (this.currentMusicZone !== 0 || !this.ctx) return;
+        if (this.currentMusicZone !== LORE_ZONE || !this.ctx) return;
         const now = this.ctx.currentTime;
 
         const playThump = (startTime: number, volume: number) => {
@@ -207,8 +266,20 @@ export class SoundManager {
       return buffer;
   }
 
-  private playDungeonTheme() {
+  playDungeonTheme(floor: number) {
     if (!this.ctx || !this.masterGain) return;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+
+    // Define Zones
+    // Zone 1: Floors 1-5 (Index 0-4)
+    const zone = floor < 5 ? 1 : 2;
+
+    // If music for this zone is already playing, do nothing
+    if (this.currentMusicZone === zone) return;
+
+    this.stopMusic();
+    this.currentMusicZone = zone;
+
     const t = this.ctx.currentTime;
 
     const musicGain = this.ctx.createGain();
@@ -264,7 +335,7 @@ export class SoundManager {
 
     // --- LAYER 3: TEETH GRINDING ---
     const playGrind = () => {
-        if (!this.ctx || this.currentMusicZone !== 1) return;
+        if (!this.ctx || this.currentMusicZone !== zone) return;
         const now = this.ctx.currentTime;
 
         const noise = this.createNoiseSource(); // white noise
@@ -300,7 +371,7 @@ export class SoundManager {
     const scale = [ 196.00, 220.00, 246.94, 293.66, 329.63, 392.00 ];
 
     const playLonelyNote = () => {
-        if (!this.ctx || this.currentMusicZone !== 1) return;
+        if (!this.ctx || this.currentMusicZone !== zone) return;
         
         const nextTime = 6000 + Math.random() * 8000; 
         const now = this.ctx.currentTime;
@@ -337,7 +408,7 @@ export class SoundManager {
     playLonelyNote();
   }
 
-  playEffect(type: 'move' | 'turn' | 'attack' | 'magic' | 'hit' | 'loot' | 'stairs' | 'victory' | 'death' | 'crit' | 'miss' | 'heal' | 'skill' | 'encounter' | 'type' | 'secret' | 'menu_select' | 'descent' | 'heartbeat_thump' | 'seal' | 'eye_blink' | 'eye_glow' | 'door_open') {
+  playEffect(type: 'move' | 'turn' | 'attack' | 'magic' | 'hit' | 'loot' | 'stairs' | 'victory' | 'death' | 'crit' | 'miss' | 'heal' | 'skill' | 'encounter' | 'type' | 'secret' | 'menu_select' | 'descent' | 'heartbeat_thump' | 'seal' | 'eye_blink' | 'eye_glow' | 'door_open' | 'save_game' | 'teleport') {
     if (!this.ctx || !this.masterGain) return;
     if (this.ctx.state === 'suspended') this.ctx.resume();
     
@@ -348,6 +419,26 @@ export class SoundManager {
     g.connect(this.masterGain);
 
     switch (type) {
+      case 'save_game':
+        this.playArpeggio([261.63, 329.63, 392.00, 523.25], 0.06, 'triangle'); // C4, E4, G4, C5
+        setTimeout(() => this.playArpeggio([783.99], 0.2, 'triangle'), 300); // G5
+        return;
+      case 'teleport':
+        const telOsc = this.ctx.createOscillator();
+        telOsc.type = 'sawtooth';
+        telOsc.frequency.setValueAtTime(50, t);
+        telOsc.frequency.exponentialRampToValueAtTime(2000, t + 0.8);
+
+        const telGain = this.ctx.createGain();
+        telGain.gain.setValueAtTime(0, t);
+        telGain.gain.linearRampToValueAtTime(0.3, t + 0.1);
+        telGain.gain.linearRampToValueAtTime(0, t + 0.8);
+
+        telOsc.connect(telGain);
+        telGain.connect(this.masterGain);
+        telOsc.start(t);
+        telOsc.stop(t + 0.8);
+        return;
       case 'move':
         // Footstep: deeper, shorter thud
         osc.type = 'triangle';
@@ -772,20 +863,20 @@ export class SoundManager {
     noise.stop(t + duration);
   }
 
-  public playArpeggio(freqs: number[]) {
+  public playArpeggio(freqs: number[], duration = 0.08, type: OscillatorType = 'square') {
     if (!this.ctx || !this.masterGain) return;
     const t = this.ctx.currentTime;
     freqs.forEach((f, i) => {
       const o = this.ctx!.createOscillator();
       const g = this.ctx!.createGain();
-      o.type = 'square';
+      o.type = type;
       o.frequency.value = f;
       o.connect(g);
       g.connect(this.masterGain!);
-      g.gain.setValueAtTime(0.1, t + i * 0.08);
-      g.gain.exponentialRampToValueAtTime(0.01, t + i * 0.08 + 0.1);
-      o.start(t + i * 0.08);
-      o.stop(t + i * 0.08 + 0.1);
+      g.gain.setValueAtTime(0.1, t + i * duration);
+      g.gain.exponentialRampToValueAtTime(0.01, t + i * duration + 0.1);
+      o.start(t + i * duration);
+      o.stop(t + i * duration + 0.1);
     });
   }
 

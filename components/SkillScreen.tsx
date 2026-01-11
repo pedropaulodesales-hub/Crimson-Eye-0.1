@@ -141,5 +141,4 @@ const SkillScreen: React.FC<SkillScreenProps> = ({
   );
 };
 
-// FIX: Add missing default export
 export default SkillScreen;

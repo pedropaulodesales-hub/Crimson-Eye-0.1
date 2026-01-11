@@ -1,10 +1,9 @@
 
 import React, { useState, useEffect, useCallback, useRef, ErrorInfo, ReactNode, useMemo } from 'react';
 import { 
-  Direction, Position, Player, Enemy, GameState, LogMessage, Item, DerivedStats, Skill, ItemType, ItemRarity, ItemMod, Buff, CombatResult, ClassDefinition
+  Direction, Position, Player, Enemy, GameState, LogMessage, Item, DerivedStats, Skill, ItemType, ItemRarity, ItemMod, Buff, CombatResult, ClassDefinition, SaveData
 } from './types';
 import { ITEMS, MATERIALS, ENEMIES, CLASSES, MOD_POOL, generateDungeon, MERCHANT_AVATAR, AVATAR_TRAVELER, CLASS_APTITUDES, generateTownMap, TEXTURE_FOUNTAIN, AVATAR_VILLAGER, TEXTURE_WALL_BRICK, TEXTURE_WALL_STONE, TEXTURE_WALL_METAL, TEXTURE_WALL_CITY, TEXTURE_DOOR, INTERIOR_MAPS, DOOR_LOCATIONS, SPRITE_STAIRS_UP, AVATAR_GHOST } from './constants';
-// FIX: Changed to named import for DungeonRenderer.
 import { DungeonRenderer } from './components/DungeonRenderer';
 import BattleScreen, { AnimationType, FloatingText } from './components/BattleScreen';
 import InventoryScreen from './components/InventoryScreen';
@@ -19,6 +18,8 @@ import LoreCutscene from './components/LoreCutscene';
 import MerchantConversation from './components/MerchantConversation';
 import SealingTransition from './components/SealingTransition';
 import DialogueBox from './components/DialogueBox';
+import FountainMenu from './components/DescentTransition';
+import TravelMenu from './components/EyeTransition';
 import { sounds } from './soundManager';
 
 interface ErrorBoundaryProps {
@@ -31,7 +32,6 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // Explicitly declare props to satisfy TypeScript
   declare props: Readonly<ErrorBoundaryProps>;
 
   state: ErrorBoundaryState = {
@@ -57,10 +57,10 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
             {this.state.error?.toString()}
           </pre>
           <button 
-            onClick={() => window.location.reload()} 
+            onClick={() => { localStorage.clear(); window.location.reload(); }} 
             className="mt-8 px-6 py-2 border border-red-500 hover:bg-red-900 text-white uppercase"
           >
-            Restart Sequence
+            Purge Corrupted Data & Restart
           </button>
         </div>
       );
@@ -71,6 +71,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 
 const ATB_MAX = 100;
 const ATB_TICK_RATE = 50; // ms
+const SAVE_KEY = "dungeon_savegame";
 
 const GameContent: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>('TITLE');
@@ -93,12 +94,8 @@ const GameContent: React.FC = () => {
   const [dialogueSpeaker, setDialogueSpeaker] = useState<{name: string, avatar: string} | null>(null);
   const [interactionTarget, setInteractionTarget] = useState<{type: 'door' | 'stairs' | 'chest' | 'merchant' | 'npc' | 'fountain', pos: Position, tileId: number, label: string} | null>(null);
 
-  // Inventory State - Initialize with Potions so ITEM button works
-  const [sharedInventory, setSharedInventory] = useState<Item[]>([
-      {...ITEMS.find(i => i.id === 'pot_hp_s')!, id: 'start_pot_1'},
-      {...ITEMS.find(i => i.id === 'pot_hp_s')!, id: 'start_pot_2'},
-      {...ITEMS.find(i => i.id === 'pot_hp_s')!, id: 'start_pot_3'}
-  ]);
+  // Inventory State
+  const [sharedInventory, setSharedInventory] = useState<Item[]>([]);
   const [materialsPouch, setMaterialsPouch] = useState<Item[]>([]);
   const [selectedInventoryChar, setSelectedInventoryChar] = useState(0);
 
@@ -108,25 +105,31 @@ const GameContent: React.FC = () => {
   const [showMerchantIntro, setShowMerchantIntro] = useState(false);
   const [hasMetMerchant, setHasMetMerchant] = useState(false);
 
-  // Quick Action State (Explore HUD)
+  // Quick Action State
   const [quickActionTargeting, setQuickActionTargeting] = useState<{type: 'item'|'skill', sourceIndex?: number, item?: Item, skill?: Skill} | null>(null);
 
   // Map State
   const [townMap, setTownMap] = useState<number[][]>([]);
-  const [dungeonFloors, setDungeonFloors] = useState<number[][][]>([]);
-  const [stairsDownLocations, setStairsDownLocations] = useState<Record<number, Position>>({});
-  const [currentFloor, setCurrentFloor] = useState(-1); // -1 signifies the Town
-  const [currentPos, setCurrentPos] = useState<Position>({ x: 6, y: 3 }); // Initial Spawn near stairs
-  const [currentDir, setCurrentDir] = useState<Direction>(Direction.SOUTH);
+  const [dungeonData, setDungeonData] = useState<{floors: number[][][], stairsDownLocations: Record<number, Position>, stairsUpLocations: Record<number, Position>, fountainLocations: Record<number, Position>} | null>(null);
+  const [currentFloor, setCurrentFloor] = useState(-1);
+  const [currentPos, setCurrentPos] = useState<Position>({ x: 7, y: 14 });
+  const [currentDir, setCurrentDir] = useState<Direction>(Direction.NORTH);
   const [explored, setExplored] = useState<Record<number, Set<string>>>({});
   const [stepsSinceBattle, setStepsSinceBattle] = useState(0);
   const [townExitState, setTownExitState] = useState<{ pos: Position, dir: Direction } | null>(null);
+  const [defeatedBosses, setDefeatedBosses] = useState<Set<number>>(new Set());
+  
+  // Save/Load & Fountain State
+  const [saveGameExists, setSaveGameExists] = useState(false);
+  const [isFountainMenuOpen, setIsFountainMenuOpen] = useState(false);
+  const [isTravelMenuOpen, setIsTravelMenuOpen] = useState(false);
+  const [discoveredFountains, setDiscoveredFountains] = useState<number[]>([]);
 
   // ATB / Combat State
   const [atbValues, setAtbValues] = useState<Record<string, number>>({});
   const [activeCharIndex, setActiveCharIndex] = useState<number | null>(null);
-  const [actingId, setActingId] = useState<string | null>(null); // For visual animation
-  const [impactIds, setImpactIds] = useState<string[]>([]); // For visual animation
+  const [actingId, setActingId] = useState<string | null>(null);
+  const [impactIds, setImpactIds] = useState<string[]>([]);
   const [currentAnim, setCurrentAnim] = useState<AnimationType>('physical');
   const [floatingTexts, setFloatingTexts] = useState<FloatingText[]>([]);
   
@@ -137,7 +140,6 @@ const GameContent: React.FC = () => {
   const [gold, setGold] = useState(100); 
   const [logs, setLogs] = useState<LogMessage[]>([]);
 
-  // Refs for logs
   const logEndRefDesktop = useRef<HTMLDivElement>(null);
   const logEndRefMobile = useRef<HTMLDivElement>(null);
 
@@ -148,7 +150,6 @@ const GameContent: React.FC = () => {
 
   const atbTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
-  // Refs for State Access inside Interval/Async closures
   const partyRef = useRef(party);
   const enemiesRef = useRef(activeEnemies);
   
@@ -157,21 +158,123 @@ const GameContent: React.FC = () => {
     enemiesRef.current = activeEnemies;
   }, [party, activeEnemies]);
 
-  // Init sound manager on mount to attempt autoplay
+  // Check for save game on mount
   useEffect(() => {
-    sounds.init();
+    try {
+      const savedGame = localStorage.getItem(SAVE_KEY);
+      setSaveGameExists(!!savedGame);
+    } catch (e) {
+      console.warn("Could not access localStorage:", e);
+      setSaveGameExists(false);
+    }
   }, []);
+
+  const saveGame = () => {
+    try {
+        const exploredData: Record<number, string[]> = {};
+        Object.keys(explored).forEach(key => {
+            exploredData[Number(key)] = Array.from(explored[Number(key)]);
+        });
+
+        const saveData: SaveData = {
+            party,
+            sharedInventory,
+            materialsPouch,
+            gold,
+            currentFloor,
+            currentPos,
+            currentDir,
+            explored: exploredData,
+            defeatedBosses: Array.from(defeatedBosses),
+            hasMetMerchant,
+            discoveredFountains,
+        };
+
+        localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
+        addLog("💾 Memory imprinted upon the flow.", 'info');
+        sounds.playEffect('save_game');
+        setSaveGameExists(true);
+    } catch (error) {
+        console.error("Failed to save game:", error);
+        addLog("❌ Save failed. The memory fades.", 'damage');
+    }
+  };
+
+  const loadGame = () => {
+      try {
+          const savedString = localStorage.getItem(SAVE_KEY);
+          if (!savedString) {
+              addLog("No save data found.", 'miss');
+              return;
+          }
+
+          const data: SaveData = JSON.parse(savedString);
+          
+          const exploredSets: Record<number, Set<string>> = {};
+          if (data.explored) {
+            Object.keys(data.explored).forEach(key => {
+                exploredSets[Number(key)] = new Set(data.explored[Number(key)]);
+            });
+          }
+
+          setParty(data.party);
+          setSharedInventory(data.sharedInventory);
+          setMaterialsPouch(data.materialsPouch || []);
+          setGold(data.gold);
+          setCurrentFloor(data.currentFloor);
+          setCurrentPos(data.currentPos);
+          setCurrentDir(data.currentDir);
+          setExplored(exploredSets);
+          setDefeatedBosses(new Set(data.defeatedBosses));
+          setHasMetMerchant(data.hasMetMerchant);
+          setDiscoveredFountains(data.discoveredFountains || []);
+
+          if (!dungeonData) {
+              const d = generateDungeon(60);
+              setDungeonData(d);
+          }
+          if (!townMap.length) {
+              setTownMap(generateTownMap());
+          }
+
+          setGameState('EXPLORE');
+          addLog("💾 The memory returns. The path is clear.", 'info');
+
+      } catch (error) {
+          console.error("Failed to load game:", error);
+          addLog("❌ Load failed. The memory is corrupted.", 'damage');
+          localStorage.removeItem(SAVE_KEY);
+          setSaveGameExists(false);
+      }
+  };
+
+  const handleFastTravel = (floor: number) => {
+      setIsTravelMenuOpen(false);
+      setIsFountainMenuOpen(false);
+      
+      setCurrentFloor(floor);
+      if (floor === -1) {
+          setCurrentPos({x: 7, y: 7});
+          setCurrentDir(Direction.SOUTH);
+      } else {
+          const fountainPos = dungeonData?.fountainLocations[floor];
+          if (fountainPos) {
+              setCurrentPos(fountainPos);
+          }
+      }
+      addLog(`🌀 Warped to ${floor === -1 ? 'Town' : `Floor B${floor + 1}`}.`, 'info');
+  };
 
   // Music Management
   useEffect(() => {
     try {
-      if (gameState === 'TITLE' || gameState === 'CREATION') {
+      if (gameState === 'TITLE' || gameState === 'CREATION' || gameState === 'LORE') {
         sounds.playLoreAmbience();
       } else if (gameState === 'EXPLORE' || gameState === 'COMBAT') {
-        if (currentFloor <= -1) { // Also covers interiors
-            sounds.playLoreAmbience();
+        if (currentFloor <= -1) {
+            sounds.playTownTheme(); 
         } else {
-            sounds.playMusic(currentFloor);
+            sounds.playDungeonTheme(currentFloor);
         }
       } else if (gameState === 'DEATH') {
         sounds.stopMusic();
@@ -180,80 +283,123 @@ const GameContent: React.FC = () => {
       console.warn("Audio playback failed", e);
     }
   }, [gameState, currentFloor]);
+  
+  // Dungeon Generation
+  useEffect(() => {
+    if (gameState === 'GENERATING') {
+        const timer = setTimeout(() => {
+            const d = generateDungeon(60);
+            setDungeonData(d);
+            setTownMap(generateTownMap());
+            
+            // Reset for new game
+            setCurrentFloor(-1);
+            setCurrentPos({ x: 7, y: 14 });
+            setCurrentDir(Direction.NORTH);
+            setExplored({});
+            setSharedInventory([
+                {...ITEMS.find(i => i.id === 'pot_hp_s')!, id: 'start_pot_1'},
+                {...ITEMS.find(i => i.id === 'pot_hp_s')!, id: 'start_pot_2'},
+                {...ITEMS.find(i => i.id === 'pot_hp_s')!, id: 'start_pot_3'}
+            ]);
+            setMaterialsPouch([]);
+            setGold(100);
+            setDefeatedBosses(new Set());
+            setHasMetMerchant(false);
+            setDiscoveredFountains([]);
+
+            addLog("You arrive at a lonely outpost, a grim haven.", 'info');
+            setGameState('EXPLORE');
+        }, 100);
+
+        return () => clearTimeout(timer);
+    }
+  }, [gameState]);
 
   const currentMap = useMemo(() => {
     if (currentFloor === -1) return townMap;
     if (currentFloor < -1) return INTERIOR_MAPS[currentFloor]?.map || [];
-    if (dungeonFloors[currentFloor]) return dungeonFloors[currentFloor];
+    if (dungeonData?.floors[currentFloor]) return dungeonData.floors[currentFloor];
     return [];
-  }, [currentFloor, townMap, dungeonFloors]);
+  }, [currentFloor, townMap, dungeonData]);
 
   // Interaction Check Logic
   useEffect(() => {
-      if (gameState !== 'EXPLORE') {
+      if (gameState !== 'EXPLORE' || !currentMap.length) {
           setInteractionTarget(null);
           return;
       }
-
-      const vecs = [{ x: 0, y: -1 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }];
-      const vec = vecs[currentDir];
-      const targetX = currentPos.x + vec.x;
-      const targetY = currentPos.y + vec.y;
-
-      if (!currentMap || targetY < 0 || targetY >= currentMap.length || targetX < 0 || targetX >= currentMap[0].length) {
-          setInteractionTarget(null);
-          return;
-      }
-
-      const tile = currentMap[targetY][targetX];
       
       let target: {type: 'door' | 'stairs' | 'chest' | 'merchant' | 'npc' | 'fountain', pos: Position, tileId: number, label: string} | null = null;
 
-      if (tile === 10) target = { type: 'door', pos: {x: targetX, y: targetY}, tileId: 10, label: 'Open Door' };
-      else if (tile === 3) target = { type: 'stairs', pos: {x: targetX, y: targetY}, tileId: 3, label: 'Descend Stairs' };
-      else if (tile === 11) target = { type: 'stairs', pos: {x: targetX, y: targetY}, tileId: 11, label: 'Ascend Stairs' };
-      else if (tile === 4) target = { type: 'chest', pos: {x: targetX, y: targetY}, tileId: 4, label: 'Open Chest' };
-      else if (tile === 5) target = { type: 'merchant', pos: {x: targetX, y: targetY}, tileId: 5, label: 'Talk to Merchant' };
-      else if (tile === 2 || tile === 6 || tile === 8 || tile === 12) target = { type: 'npc', pos: {x: targetX, y: targetY}, tileId: tile, label: 'Talk' };
-      else if (tile === 7) target = { type: 'fountain', pos: {x: targetX, y: targetY}, tileId: 7, label: 'Drink from Fountain' };
+      const currentTile = currentMap[currentPos.y][currentPos.x];
+      if (currentTile === 3) target = { type: 'stairs', pos: currentPos, tileId: 3, label: 'Descend Stairs' };
+      else if (currentTile === 11) target = { type: 'stairs', pos: currentPos, tileId: 11, label: 'Ascend Stairs' };
+      else if (currentTile === 7) target = { type: 'fountain', pos: currentPos, tileId: 7, label: 'Examine Fountain' };
+
+      if (!target) {
+          const vecs = [{ x: 0, y: -1 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }];
+          const vec = vecs[currentDir];
+          const targetX = currentPos.x + vec.x;
+          const targetY = currentPos.y + vec.y;
+    
+          if (targetY >= 0 && targetY < currentMap.length && targetX >= 0 && targetX < currentMap[0].length) {
+              const tileInFront = currentMap[targetY][targetX];
+              if (tileInFront === 10) target = { type: 'door', pos: {x: targetX, y: targetY}, tileId: 10, label: 'Open Door' };
+              else if (tileInFront === 4) target = { type: 'chest', pos: {x: targetX, y: targetY}, tileId: 4, label: 'Open Chest' };
+              else if (tileInFront === 5) target = { type: 'merchant', pos: {x: targetX, y: targetY}, tileId: 5, label: 'Talk to Merchant' };
+              else if ([2, 6, 8, 12].includes(tileInFront)) target = { type: 'npc', pos: {x: targetX, y: targetY}, tileId: tileInFront, label: 'Talk' };
+              else if (tileInFront === 7) target = { type: 'fountain', pos: {x: targetX, y: targetY}, tileId: 7, label: 'Examine Fountain' };
+          }
+      }
 
       setInteractionTarget(target);
 
   }, [currentPos, currentDir, currentMap, gameState]);
 
-  const generateRandomItem = (base: Item, levelFactor: number = 1): Item => {
+  const generateRandomItem = (base: Item, levelFactor: number = 1, magicFind: number = 0): Item => {
     if (base.type === 'consumable' || base.type === 'material') return { ...base, rarity: 'NORMAL', mods: [] };
-    const roll = Math.random() * 100;
+    
+    const roll = Math.random() * 100 + magicFind;
+    
     let rarity: ItemRarity = 'NORMAL';
     let modCount = 0;
-    if (roll > 98) { rarity = 'UNIQUE'; modCount = 5; }
-    else if (roll > 92) { rarity = 'LEGENDARY'; modCount = 4; }
-    else if (roll > 80) { rarity = 'RARE'; modCount = 3; }
-    else if (roll > 60) { rarity = 'MAGIC'; modCount = 2; }
-    else if (roll > 40) { rarity = 'UNCOMMON'; modCount = 1; }
+
+    if (roll > 99.99) { rarity = 'UNIQUE'; modCount = 5; }
+    else if (roll > 99.5) { rarity = 'LEGENDARY'; modCount = 4; }
+    else if (roll > 95) { rarity = 'RARE'; modCount = 3; }
+    else if (roll > 80) { rarity = 'MAGIC'; modCount = 2; }
+    else if (roll > 55) { rarity = 'UNCOMMON'; modCount = 1; }
+    else { rarity = 'NORMAL'; modCount = 0; }
+
     const mods: ItemMod[] = [];
     const pool = [...MOD_POOL];
     for (let i = 0; i < modCount; i++) {
       if (pool.length === 0) break;
       const idx = Math.floor(Math.random() * pool.length);
       const modTemplate = pool.splice(idx, 1)[0];
-      mods.push({ ...modTemplate, value: Math.floor(modTemplate.value * (1 + (levelFactor - 1) * 0.2)) });
+      mods.push({ ...modTemplate, value: Math.max(1, Math.floor(modTemplate.value * (1 + (levelFactor - 1) * 0.3))) });
     }
+
     let finalName = base.name;
-    if (mods.length > 0) finalName = `${base.name} ${mods[0].name}`;
-    return { ...base, name: rarity === 'UNIQUE' ? `[Unique] ${finalName}` : finalName, rarity, mods, value: Math.floor(base.value * levelFactor * (1 + modCount * 0.5)) };
+    if (rarity === 'UNCOMMON' && mods.length > 0) {
+      finalName = `${base.name} ${mods[0].name}`;
+    } else if (rarity !== 'NORMAL') {
+      const prefixes: Record<string, string> = { MAGIC: 'Magic', RARE: 'Rare', LEGENDARY: 'Legendary', UNIQUE: `[Unique]` };
+      finalName = `${prefixes[rarity] || ''} ${base.name}`;
+    }
+
+    const rarityValueMultiplier: Record<ItemRarity, number> = { NORMAL: 1, UNCOMMON: 1.5, MAGIC: 2.5, RARE: 5, LEGENDARY: 15, UNIQUE: 50 };
+    const finalValue = Math.floor(base.value * levelFactor * (rarityValueMultiplier[rarity] || 1));
+
+    return { ...base, name: finalName, rarity, mods, value: finalValue };
   };
 
   const calculateDerivedStats = (ent: Player | Enemy | any): DerivedStats => {
     const equipped = [ent.weapon, ent.helm, ent.chest, ent.gloves, ent.boots, ent.accessory].filter(Boolean) as Item[];
-    const isPlayer = !!ent.class; // Check if it's a player for aptitude system
+    const isPlayer = !!ent.class;
 
-    const passiveBonuses: Record<string, number> = {
-        str: 0, int: 0, dex: 0, vit: 0, cha: 0,
-        hp: 0, mp: 0, atk: 0, def: 0, mAtk: 0, mDef: 0, 
-        acc: 0, eva: 0, critChance: 0, critDamage: 0
-    };
-
+    const passiveBonuses: Record<string, number> = { str: 0, int: 0, dex: 0, vit: 0, cha: 0, hp: 0, mp: 0, atk: 0, def: 0, mAtk: 0, mDef: 0, acc: 0, eva: 0, critChance: 0, critDamage: 0 };
     if (ent.skillLevels && ent.skills) {
       ent.skills.forEach((skill: Skill) => {
           const level = ent.skillLevels[skill.id] || 0;
@@ -263,7 +409,6 @@ const GameContent: React.FC = () => {
       });
     }
 
-    // APTITUDE SYSTEM LOGIC
     const modValues: Record<string, number> = { str: 0, int: 0, dex: 0, vit: 0, cha: 0, atk: 0, def: 0, mAtk: 0, mDef: 0, hp: 0, mp: 0, critChance: 0 };
     let itemBonusStats: Record<string, number> = { atk: 0, def: 0, mAtk: 0, mDef: 0, maxHp: 0, maxMp: 0 };
     let heavyItemsEquipped = 0;
@@ -273,38 +418,29 @@ const GameContent: React.FC = () => {
         
         if (isPlayer && item.weight) {
             const aptitudes = CLASS_APTITUDES[ent.class as keyof typeof CLASS_APTITUDES];
-            if (aptitudes) {
-                multiplier = aptitudes[item.weight] || 1.0;
-            }
+            if (aptitudes) multiplier = aptitudes[item.weight] || 1.0;
             if (item.weight === 'HEAVY') heavyItemsEquipped++;
         }
 
-        // Apply aptitude multiplier to base item stats
         if (item.stat) {
-            // "stat" usually maps to ATK for weapons or DEF for armor
-            if (item.type === 'weapon') itemBonusStats.atk += Math.floor(item.stat * multiplier);
-            else if (item.type === 'accessory') itemBonusStats.atk += Math.floor(item.stat * multiplier); // Simplified logic
+            if (item.type === 'weapon' || item.type === 'accessory') itemBonusStats.atk += Math.floor(item.stat * multiplier);
             else itemBonusStats.def += Math.floor(item.stat * multiplier);
         }
         if (item.magicStat) {
-             // "magicStat" usually maps to M.ATK for weapons or M.DEF/MP for other things
              if (item.type === 'weapon') itemBonusStats.mAtk += Math.floor(item.magicStat * multiplier);
-             else if (item.type === 'consumable') {} // Handled elsewhere
              else itemBonusStats.mDef += Math.floor(item.magicStat * multiplier);
         }
-
-        // Mods are also affected by aptitude? The prompt implies "stats" generally.
-        // Let's apply multiplier to mods too for consistency.
         item.mods?.forEach(mod => { 
             modValues[mod.stat] = (modValues[mod.stat] || 0) + Math.floor(mod.value * multiplier); 
         }); 
     });
     
-    const buffValues: Record<string, number> = { str: 0, int: 0, dex: 0, vit: 0, atk: 0, def: 0, mAtk: 0, mDef: 0, acc: 0, eva: 0, critChance: 0, maxHp: 0 };
+    const buffValues: Record<string, number> = { str: 0, int: 0, dex: 0, vit: 0, atk: 0, def: 0, mAtk: 0, mDef: 0, acc: 0, eva: 0, critChance: 0, maxHp: 0, damage_taken_increase: 0 };
     if (ent.buffs) {
         ent.buffs.forEach((b: Buff) => {
-            if (b.stat && b.type === 'buff') buffValues[b.stat] = (buffValues[b.stat] || 0) + b.value;
-            if (b.stat && b.type === 'debuff') buffValues[b.stat] = (buffValues[b.stat] || 0) + b.value; 
+            if (b.stat && (b.type === 'buff' || b.type === 'debuff')) {
+                buffValues[b.stat] = (buffValues[b.stat] || 0) + b.value; 
+            }
         });
     }
 
@@ -319,21 +455,11 @@ const GameContent: React.FC = () => {
     const def = Math.floor(effectiveVit * 1.5) + itemBonusStats.def + modValues.def + passiveBonuses.def + buffValues.def;
     const mDef = Math.floor(effectiveInt * 1.0) + itemBonusStats.mDef + modValues.mDef + passiveBonuses.mDef + buffValues.mDef;
     
-    // Penalties for Heavy usage on specific classes
-    let speedPenalty = 0;
-    let evaPenalty = 0;
-    let critPenalty = 0;
-
+    let speedPenalty = 0, evaPenalty = 0, critPenalty = 0;
     if (isPlayer && heavyItemsEquipped > 0) {
-        if (ent.class === 'ARCHER') {
-            speedPenalty = 5 * heavyItemsEquipped; // Reduces turn speed (DEX effect on ATB)
-        } else if (ent.class === 'ROGUE') {
-            evaPenalty = 10 * heavyItemsEquipped;
-            critPenalty = 5 * heavyItemsEquipped;
-        }
+        if (ent.class === 'ARCHER') speedPenalty = 5 * heavyItemsEquipped;
+        else if (ent.class === 'ROGUE') { evaPenalty = 10 * heavyItemsEquipped; critPenalty = 5 * heavyItemsEquipped; }
     }
-
-    // Adjust effective speed (DEX) used for ATB by speedPenalty
     const effectiveSpeedDex = Math.max(1, effectiveDex - speedPenalty);
 
     const acc = Math.min(99, Math.floor(85 + (effectiveDex * 0.5) + passiveBonuses.acc + buffValues.acc));
@@ -391,11 +517,8 @@ const GameContent: React.FC = () => {
         
         partyRef.current.forEach(p => {
           if (p.hp > 0 && !triggeredId) {
-            let speed = p.dex;
-            const heavyCount = [p.weapon, p.helm, p.chest, p.gloves, p.boots].filter(i => i?.weight === 'HEAVY').length;
-            if (p.class === 'ARCHER' && heavyCount > 0) speed -= (5 * heavyCount);
-            
-            const fillRate = 1.0 + (Math.max(1, speed) * 0.1);
+            const stats = calculateDerivedStats(p);
+            const fillRate = 1.0 + (Math.max(1, stats.effectiveDex) * 0.1);
             next[p.id] = Math.min(ATB_MAX, (next[p.id] || 0) + fillRate);
             if (next[p.id] >= ATB_MAX) triggeredId = p.id;
           }
@@ -403,7 +526,8 @@ const GameContent: React.FC = () => {
         
         enemiesRef.current.forEach(e => {
           if (e.hp > 0 && !triggeredId) {
-            const fillRate = 1.0 + (e.dex * 0.1);
+            const stats = calculateDerivedStats(e);
+            const fillRate = 1.0 + (stats.effectiveDex * 0.1);
             next[e.instanceId] = Math.min(ATB_MAX, (next[e.instanceId] || 0) + fillRate);
             if (next[e.instanceId] >= ATB_MAX) triggeredId = e.instanceId;
           }
@@ -427,18 +551,37 @@ const GameContent: React.FC = () => {
 
   const applyDotEffects = (entity: Player | Enemy): { newHp: number, isDead: boolean, activeBuffs: Buff[] } => {
       let newHp = entity.hp;
+      let shieldHp = entity.shieldHp || 0;
       let tookDamage = false;
+      let addedBuffs: Buff[] = [];
       
-      const activeBuffs = entity.buffs.map(b => ({...b, duration: b.duration - 1})).filter(b => b.duration > 0);
+      const activeBuffs = entity.buffs
+        .map(b => {
+          if (b.id === 'rage_buff' && b.duration -1 <= 0) {
+            addedBuffs.push({id: 'stun', name: 'Confused', type: 'debuff', stat: 'dex', value: 0, duration: 1});
+            addLog(`${entity.name}'s rage subsides, leaving them confused!`, 'info');
+          }
+          return {...b, duration: b.duration - 1}
+        })
+        .filter(b => b.duration > 0);
+
       const expired = entity.buffs.filter(b => !activeBuffs.find(ab => ab.id === b.id));
       expired.forEach(b => addLog(`${b.name} faded from ${entity.name || 'Hero'}.`, 'info'));
 
       entity.buffs.forEach(b => {
-          if (b.id === 'poison' || b.id === 'burn') {
-              const dmg = Math.max(1, Math.floor(entity.maxHp * 0.05));
-              newHp -= dmg;
+          if (b.id === 'poison' || b.id === 'burn' || b.id === 'bleed') {
+              const dmg = Math.max(1, Math.floor(entity.maxHp * b.value));
+              
+              let damageDealt = dmg;
+              if (shieldHp > 0) {
+                const shieldDmg = Math.min(shieldHp, damageDealt);
+                shieldHp -= shieldDmg;
+                damageDealt -= shieldDmg;
+              }
+              newHp -= damageDealt;
+              
               tookDamage = true;
-              addLog(`${entity.name || (entity as Player).class} takes ${dmg} ${b.name} damage.`, 'damage');
+              addLog(`${entity.name || (entity as Player).class} takes ${dmg} ${b.id} damage.`, 'damage');
               const id = (entity as any).instanceId || (entity as any).id;
               spawnFloatingText(id, `-${dmg}`, 'damage');
           }
@@ -446,7 +589,7 @@ const GameContent: React.FC = () => {
 
       if (tookDamage) sounds.playEffect('hit');
       
-      return { newHp: Math.max(0, newHp), isDead: newHp <= 0, activeBuffs };
+      return { newHp: Math.max(0, newHp), isDead: newHp <= 0, activeBuffs: [...activeBuffs, ...addedBuffs] };
   };
 
   const handleTurn = (id: string) => {
@@ -454,38 +597,49 @@ const GameContent: React.FC = () => {
 
     const isPlayer = id.startsWith('hero');
     let isDead = false;
+    let turnSkipped = false;
     
     if (isPlayer) {
         let currentPlayer = partyRef.current.find(p => p.id === id);
         if (currentPlayer) {
+            if (currentPlayer.buffs.some(b => b.id === 'stun' || b.id === 'polymorph')) {
+                addLog(`${currentPlayer.class} is stunned and cannot act!`, 'info');
+                turnSkipped = true;
+            }
             const res = applyDotEffects(currentPlayer); 
             isDead = res.isDead;
             setParty(prev => prev.map(p => p.id === id ? { ...p, hp: res.newHp, buffs: res.activeBuffs } : p));
             
             if (isDead) {
-                const allDead = partyRef.current.every(p => p.id === id ? true : p.hp <= 0); 
+                addLog(`${currentPlayer.class} has fallen!`, 'combat');
+                const allDead = partyRef.current.every(p => p.hp <= 0); 
                 if (allDead) { setGameState('DEATH'); return; }
             }
         }
     } else {
         let currentEnemy = enemiesRef.current.find(e => e.instanceId === id);
         if (currentEnemy) {
+            if (currentEnemy.buffs.some(b => b.id === 'stun' || b.id === 'polymorph')) {
+                addLog(`${currentEnemy.name} is unable to act!`, 'info');
+                turnSkipped = true;
+            }
             const res = applyDotEffects(currentEnemy);
             isDead = res.isDead;
             setActiveEnemies(prev => prev.map(e => e.instanceId === id ? { ...e, hp: res.newHp, buffs: res.activeBuffs } : e));
             
             if (isDead) {
-                const finalEnemies = enemiesRef.current.map(e => e.instanceId === id ? { ...e, hp: 0 } : e);
-                const remaining = finalEnemies.filter(e => e.instanceId !== id && e.hp > 0);
+                addLog(`${currentEnemy.name} was defeated!`, 'combat');
+                const remaining = enemiesRef.current.filter(e => e.hp > 0 && e.instanceId !== id);
                 if (remaining.length === 0) {
-                     handleVictory(finalEnemies);
+                     handleVictory(enemiesRef.current);
                      return;
                 }
             }
         }
     }
 
-    if (isDead) {
+    if (isDead || turnSkipped) {
+        setAtbValues(prev => ({ ...prev, [id]: 0 }));
         setActingId(null);
         setTimeout(startAtbClock, 500);
         return;
@@ -516,16 +670,20 @@ const GameContent: React.FC = () => {
     if (alivePartyIndices.length === 0) { setGameState('DEATH'); return; }
     
     const enemyStats = calculateDerivedStats(enemy);
-    // Simple AI: Random target
     let targetIdx = alivePartyIndices[Math.floor(Math.random() * alivePartyIndices.length)];
     const target = partyRef.current[targetIdx];
     const targetStats = calculateDerivedStats(target);
 
-    // Damage Calculation
-    const damage = Math.max(1, Math.floor((enemyStats.atk - targetStats.def * 0.5) * (0.8 + Math.random() * 0.4)));
+    let damage = Math.max(1, Math.floor((enemyStats.atk - targetStats.def * 0.5) * (0.8 + Math.random() * 0.4)));
+    
+    const markedDebuff = target.buffs.find(b => b.id === 'mark_for_death');
+    if (markedDebuff) {
+        damage = Math.floor(damage * (1 + markedDebuff.value));
+    }
+    
     const isCrit = Math.random() * 100 < enemyStats.critChance;
-    const finalDamage = isCrit ? Math.floor(damage * (enemyStats.critDamage / 100)) : damage;
-    const hit = Math.random() * 100 < (75 + enemyStats.acc - targetStats.eva);
+    let finalDamage = isCrit ? Math.floor(damage * (enemyStats.critDamage / 100)) : damage;
+    const hit = Math.random() * 100 < (enemyStats.acc - targetStats.eva);
 
     setImpactIds([target.id]);
     setCurrentAnim('physical');
@@ -533,18 +691,29 @@ const GameContent: React.FC = () => {
     
     setTimeout(() => {
         if (hit) {
-            spawnFloatingText(target.id, isCrit ? `${finalDamage}!` : `${finalDamage}`, isCrit ? 'crit' : 'damage');
-            addLog(`${enemy.name} attacks ${target.class} for ${finalDamage} damage.`, 'damage');
-            if (isCrit) sounds.playEffect('crit');
+            let damageDealt = finalDamage;
+            let currentShield = target.shieldHp || 0;
+            if (currentShield > 0) {
+              const shieldDmg = Math.min(currentShield, damageDealt);
+              currentShield -= shieldDmg;
+              damageDealt -= shieldDmg;
+              addLog(`🛡️ ${target.class}'s barrier absorbs ${shieldDmg} damage!`, 'block');
+              spawnFloatingText(target.id, `-${shieldDmg}`, 'block');
+            }
+
+            if (damageDealt > 0) {
+                spawnFloatingText(target.id, isCrit ? `${damageDealt}!` : `${damageDealt}`, isCrit ? 'crit' : 'damage');
+                addLog(`${enemy.name} attacks ${target.class} for ${damageDealt} damage.`, 'damage');
+                if (isCrit) sounds.playEffect('crit');
+            }
 
             setParty(prev => prev.map((p, i) => {
                 if (i !== targetIdx) return p;
-                const newHp = Math.max(0, p.hp - finalDamage);
-                return { ...p, hp: newHp };
+                const newHp = Math.max(0, p.hp - damageDealt);
+                return { ...p, hp: newHp, shieldHp: currentShield };
             }));
 
-            if (target.hp - finalDamage <= 0) {
-                // Check wipe
+            if (target.hp - damageDealt <= 0) {
                 const stillAlive = partyRef.current.filter((p, i) => i !== targetIdx && p.hp > 0).length;
                 if (stillAlive === 0) setGameState('DEATH');
             }
@@ -567,39 +736,32 @@ const GameContent: React.FC = () => {
     stopAtbClock();
     sounds.playEffect('victory');
     
-    // Calculate rewards
-    let totalXp = 0;
-    let totalGold = 0;
+    let totalXp = 0, totalGold = 0;
     const drops: Item[] = [];
+    const magicFind = currentFloor * 0.5;
 
     finalEnemies.forEach(e => {
         totalXp += e.xpValue;
         totalGold += e.goldValue;
         
-        // Drop logic
-        if (Math.random() < 0.2) { // 20% drop rate
+        if (Math.random() < 0.2) {
             const baseItem = Math.random() < 0.3 
                 ? MATERIALS[Math.floor(Math.random() * MATERIALS.length)]
                 : ITEMS[Math.floor(Math.random() * ITEMS.length)];
-            
-            drops.push(generateRandomItem(baseItem, currentFloor + 1));
+            drops.push(generateRandomItem(baseItem, currentFloor + 1, magicFind));
         }
     });
 
-    // Apply to party
     setParty(prev => prev.map(p => {
-        if (p.hp <= 0) return p; // Dead get no XP
-        let newXp = p.xp + totalXp;
-        let newLevel = p.level;
-        let skillPoints = p.skillPoints;
-        
-        // Simple level up formula: 100 * level
-        const nextLevelXp = newLevel * 100;
-        if (newXp >= nextLevelXp) {
+        if (p.hp <= 0) return p;
+        let newXp = p.xp + totalXp, newLevel = p.level, skillPoints = p.skillPoints;
+        let nextLevelXp = newLevel * 100;
+        while (newXp >= nextLevelXp) {
             newXp -= nextLevelXp;
             newLevel++;
             skillPoints++;
             addLog(`${p.class} reached Level ${newLevel}!`, 'level');
+            nextLevelXp = newLevel * 100;
         }
         return { ...p, xp: newXp, level: newLevel, skillPoints };
     }));
@@ -607,20 +769,22 @@ const GameContent: React.FC = () => {
     setGold(g => g + totalGold);
     setSharedInventory(inv => [...inv, ...drops]);
 
-    // Logs
-    addLog(`Victory! Gained ${totalXp} XP and ${totalGold} Gold.`, 'loot');
-    if (drops.length > 0) {
-        addLog(`Found ${drops.length} items.`, 'loot');
+    const bossDefeated = finalEnemies.find(e => e.isBoss);
+    if (bossDefeated) {
+        addLog(`The guardian of Floor ${currentFloor + 1} has been vanquished! The way is clear.`, 'level');
+        setDefeatedBosses(prev => new Set(prev).add(currentFloor));
     }
+
+    addLog(`Victory! Gained ${totalXp} XP and ${totalGold} Gold.`, 'loot');
+    if (drops.length > 0) addLog(`Found ${drops.length} items.`, 'loot');
 
     setGameState('VICTORY');
     setIsVictoryTransition(true);
 
-    // Transition back to Explore
     setTimeout(() => {
         setIsVictoryTransition(false);
         setGameState('EXPLORE');
-        sounds.playMusic(currentFloor);
+        sounds.playDungeonTheme(currentFloor);
         setActiveEnemies([]);
         setAtbValues({});
     }, 3000);
@@ -655,13 +819,24 @@ const GameContent: React.FC = () => {
         const stats = calculateDerivedStats(attacker);
         const targetStats = calculateDerivedStats(target);
         addLog(`⚔️ ${attacker.class} strikes at ${target.name}...`, 'player_action');
+        
+        let guaranteedCrit = false;
+        const vanishBuff = attacker.buffs.find(b => b.id === 'guaranteed_crit');
+        if (vanishBuff) {
+            guaranteedCrit = true;
+            setParty(prev => prev.map(p => p.id === attacker.id ? {...p, buffs: p.buffs.filter(b => b.id !== 'guaranteed_crit')} : p));
+        }
+
         if (Math.random() * 100 > stats.acc) {
           sounds.playEffect('miss');
           addLog(`💨 MISS! The attack whistled past the target.`, 'miss');
           spawnFloatingText(target.instanceId, "MISS", "miss");
         } else {
           let dmg = Math.max(1, stats.atk - Math.floor(targetStats.def * 0.5));
-          const isCrit = Math.random() * 100 < stats.critChance;
+          const markedDebuff = target.buffs.find(b => b.id === 'mark_for_death');
+          if (markedDebuff) dmg = Math.floor(dmg * (1 + markedDebuff.value));
+          const isCrit = guaranteedCrit || Math.random() * 100 < stats.critChance;
+
           if (isCrit) {
             dmg = Math.floor(dmg * (stats.critDamage / 100));
             sounds.playEffect('crit');
@@ -672,10 +847,24 @@ const GameContent: React.FC = () => {
             addLog(`💥 ${target.name} takes ${dmg} damage.`, 'damage');
             spawnFloatingText(target.instanceId, `-${dmg}`, "damage");
           }
-          const currentEnemies = enemiesRef.current;
-          const newEnemies = currentEnemies.map(e => e.instanceId === target.instanceId ? { ...e, hp: Math.max(0, e.hp - dmg) } : e);
+          let newEnemies = [...enemiesRef.current];
+          
+          let targetData = newEnemies.find(e => e.instanceId === target.instanceId);
+          if (targetData) {
+              let damageDealt = dmg;
+              let shield = targetData.shieldHp || 0;
+              if (shield > 0) {
+                  const shieldDmg = Math.min(shield, damageDealt);
+                  shield -= shieldDmg;
+                  damageDealt -= shieldDmg;
+                  addLog(`🛡️ Barrier absorbs ${shieldDmg} damage!`, 'block');
+              }
+              const newHp = Math.max(0, targetData.hp - damageDealt);
+              newEnemies = newEnemies.map(e => e.instanceId === target.instanceId ? { ...e, hp: newHp, shieldHp: shield } : e);
+          }
+
           setActiveEnemies(newEnemies);
-          if (newEnemies.filter(e => e.hp > 0).length === 0) { 
+          if (newEnemies.every(e => e.hp <= 0)) { 
               handleVictory(newEnemies); 
               return; 
           }
@@ -689,13 +878,10 @@ const GameContent: React.FC = () => {
     const actor = party[activeCharIndex];
     const target = party[targetIdx];
     
-    // Remove item
     setSharedInventory(prev => {
         const idx = prev.findIndex(i => i.id === item.id);
         if (idx > -1) {
-            const next = [...prev];
-            next.splice(idx, 1);
-            return next;
+            const next = [...prev]; next.splice(idx, 1); return next;
         }
         return prev;
     });
@@ -712,8 +898,7 @@ const GameContent: React.FC = () => {
 
         setParty(prev => prev.map((p, i) => {
             if (i === targetIdx) {
-                let newHp = p.hp;
-                let newMp = p.mp;
+                let newHp = p.hp, newMp = p.mp;
                 if (healAmount > 0) newHp = Math.min(stats.maxHp, p.hp + healAmount);
                 if (mpAmount > 0) newMp = Math.min(stats.maxMp, p.mp + mpAmount);
                 return { ...p, hp: newHp, mp: newMp };
@@ -743,167 +928,119 @@ const GameContent: React.FC = () => {
             const currentTarget = activeEnemies[effectiveTargetIndex];
             if (!currentTarget || currentTarget.hp <= 0) {
                  const aliveIdx = activeEnemies.findIndex(e => e.hp > 0);
-                 if (aliveIdx !== -1) {
-                     effectiveTargetIndex = aliveIdx;
-                     setTargetIndex(aliveIdx);
-                 } else {
-                     return;
-                 }
+                 if (aliveIdx !== -1) { effectiveTargetIndex = aliveIdx; setTargetIndex(aliveIdx); }
+                 else return;
             }
         }
     }
 
     const attacker = party[activeCharIndex];
-    const stats = calculateDerivedStats(attacker);
+    const attackerStats = calculateDerivedStats(attacker);
     const skillLevel = attacker.skillLevels[skill.id] || 0; 
     
     setActingId(attacker.id);
     
-    // Updated scaling per user request: Base(1.0) -> +1(1.12) -> +2(1.25) -> +3(1.45) approx
-    // We'll use a smoother function that closely matches the request
     const multipliers = [1.0, 1.15, 1.30, 1.50];
     const levelPowerMult = multipliers[Math.min(3, Math.max(0, skillLevel - 1))];
 
     sounds.playEffect('skill');
-    addLog(`🔥 ${attacker.class} uses skill: ${skill.name} (Lv.${skillLevel})!`, 'player_action');
-    setParty(prev => prev.map(m => m.id === attacker.id ? { ...m, mp: m.mp - skill.cost } : m));
-    let targetIds: string[] = [];
+    addLog(`✨ ${attacker.class} uses ${skill.name}!`, 'player_action');
+    
+    let targets: (Player | Enemy)[] = [];
     if (skill.targetType === 'enemy') {
-        if (skill.isAoe) targetIds = enemiesRef.current.filter(e => e.hp > 0).map(e => e.instanceId);
-        else targetIds = [activeEnemies[effectiveTargetIndex]?.instanceId].filter(Boolean);
+        setCurrentAnim('magical');
+        if (skill.isAoe) targets = enemiesRef.current.filter(e => e.hp > 0);
+        else targets = [activeEnemies[effectiveTargetIndex]].filter(Boolean);
     } else {
-        if (skill.isAoe) targetIds = party.filter(p => p.hp > 0).map(p => p.id);
-        else targetIds = [party[explicitTargetIndex !== undefined ? explicitTargetIndex : allyTargetIndex]?.id || attacker.id];
-    }
-    setImpactIds(targetIds);
-    setTimeout(() => setImpactIds([]), 500);
-    setTimeout(() => {
-        if (skill.targetType === 'enemy') {
-            setCurrentAnim(skill.id.includes('cleave') || skill.id.includes('stab') ? 'physical' : 'magical');
-            const currentEnemies = enemiesRef.current;
-            const newEnemies = [...currentEnemies]; 
-            targetIds.forEach(tid => {
-                const targetIdx = newEnemies.findIndex(e => e.instanceId === tid);
-                if (targetIdx === -1) return;
-                const oldTarget = newEnemies[targetIdx];
-                const power = (skill.basePower || 1.0) * levelPowerMult;
-                let dmg = 0;
-                
-                if (skill.id === 'r_mug') {
-                    dmg = 5 + Math.floor(stats.effectiveDex * 0.5); 
-                    if (!oldTarget.stolenFrom) {
-                        const stealChance = 25 + (stats.effectiveDex * 2);
-                        const roll = Math.random() * 100;
-                        if (roll < stealChance) {
-                             const baseItem = ITEMS[Math.floor(Math.random() * ITEMS.length)];
-                             const item = generateRandomItem(baseItem, 1 + currentFloor * 0.2);
-                             setSharedInventory(prev => [...prev, item]);
-                             newEnemies[targetIdx] = { ...newEnemies[targetIdx], stolenFrom: true };
-                             addLog(`🖐️ ${attacker.class} stole ${item.name} from ${oldTarget.name}!`, 'loot');
-                             spawnFloatingText(tid, "ITEM STOLEN!", "crit");
-                             sounds.playEffect('loot');
-                        } else {
-                             addLog(`Failed to steal item from ${oldTarget.name}.`, 'miss');
-                             spawnFloatingText(tid, "STEAL FAILED", "miss");
-                        }
-                    } else {
-                        addLog(`${oldTarget.name} has empty pockets.`, 'miss');
-                        spawnFloatingText(tid, "EMPTY", "miss");
-                    }
-                    const goldStolen = 10 * skillLevel + Math.floor(Math.random() * 10);
-                    setGold(g => g + goldStolen);
-                    spawnFloatingText(attacker.id, `+${goldStolen}G`, "loot");
-
-                } else if (skill.id === 'b_blood') {
-                    dmg = Math.floor(stats.atk * power);
-                    spawnFloatingText(attacker.id, `+${Math.floor(dmg * 0.3)}`, "heal");
-                } else if (skill.id === 'b_shout') {
-                    dmg = 0; // Battle Shout does no damage
-                } else {
-                    dmg = skill.type === 'attack' ? Math.floor(stats.atk * power) : Math.floor(stats.mAtk * power);
-                }
-                
-                if (skill.id === 'w_bash') {
-                    // Stun chance increases with level
-                    const stunChance = 60 + (skillLevel * 5);
-                    if (Math.random() * 100 < stunChance) {
-                        setAtbValues(prev => ({...prev, [tid]: Math.max(0, (prev[tid] || 0) - 50)}));
-                        spawnFloatingText(tid, "STUN", "block");
-                    }
-                } else if (skill.id === 'b_shout') {
-                    // AoE Stun logic
-                    const stunChance = 40 + (skillLevel * 10);
-                    if (Math.random() * 100 < stunChance) {
-                        setAtbValues(prev => ({...prev, [tid]: 0 })); // Full turn reset
-                        spawnFloatingText(tid, "STUN", "block");
-                    }
-                } else if (skill.id === 'r_pois' || skill.id === 'a_tox') {
-                    const newBuffs = [...oldTarget.buffs.filter(b => b.id !== 'poison'), { id: 'poison', name: 'Poison', type: 'debuff', stat: 'def', value: -5, duration: 2 + skillLevel } as Buff];
-                    newEnemies[targetIdx] = { ...newEnemies[targetIdx], buffs: newBuffs };
-                } else if (skill.id === 'a_fire' || skill.id === 'm_fire' || skill.id === 'm_solar') {
-                    const burnChance = 40 + skillLevel * 10;
-                    if (Math.random() * 100 < burnChance) {
-                        const newBuffs = [...oldTarget.buffs.filter(b => b.id !== 'burn'), { id: 'burn', name: 'Burn', type: 'debuff', stat: 'def', value: -10, duration: 2 } as Buff];
-                        newEnemies[targetIdx] = { ...newEnemies[targetIdx], buffs: newBuffs };
-                    }
-                }
-                const newHp = Math.max(0, newEnemies[targetIdx].hp - dmg);
-                newEnemies[targetIdx] = { ...newEnemies[targetIdx], hp: newHp };
-                if (dmg > 0) spawnFloatingText(tid, `-${dmg}`, "damage");
-            });
-            setActiveEnemies(newEnemies);
-            if (skill.id === 'b_blood') {
-                 const dmg = Math.floor(stats.atk * (skill.basePower||1) * levelPowerMult);
-                 setParty(prev => prev.map(p => p.id === attacker.id ? {...p, hp: Math.min(stats.maxHp, p.hp + Math.floor(dmg * 0.3))} : p));
-            }
-            if (newEnemies.filter(e => e.hp > 0).length === 0) {
-                 handleVictory(newEnemies);
-                 return;
-            }
-        } else {
-            setCurrentAnim(skill.type === 'heal' ? 'heal' : 'magical');
-            setParty(prev => prev.map(p => {
-                if (!targetIds.includes(p.id)) return p;
-                const pStats = calculateDerivedStats(p);
-                
-                if ((skill as any).revive) {
-                    if (p.hp > 0) return p;
-                    const healAmt = Math.floor(pStats.maxHp * (0.2 + skillLevel * 0.1));
-                    spawnFloatingText(p.id, `REVIVE`, "heal");
-                    return { ...p, hp: healAmt, buffs: [] }; 
-                }
-
-                if (p.hp <= 0) return p;
-
-                if (skill.type === 'heal') {
-                    const healAmt = Math.floor((skill.type === 'heal' ? attacker.int * 1.5 : 0) * levelPowerMult);
-                    spawnFloatingText(p.id, `+${healAmt}`, "heal");
-                    return { ...p, hp: Math.min(pStats.maxHp, p.hp + healAmt) };
-                } else if (skill.type === 'buff') {
-                    let newBuffs = [...p.buffs];
-                    let buffsToAdd: Buff[] = [];
-                    // Generic buff duration scaling
-                    const dur = 2 + Math.floor(skillLevel / 2);
-
-                    if (skill.id === 'w_wall') buffsToAdd.push({ id: 'w_wall', name: 'Shield Wall', type: 'buff', stat: 'def', value: Math.floor(pStats.def * (0.4 + skillLevel * 0.1)), duration: dur });
-                    if (skill.id === 'm_shield') buffsToAdd.push({ id: 'm_shield', name: 'Mana Shield', type: 'buff', stat: 'mDef', value: Math.floor(pStats.mDef * (0.4 + skillLevel * 0.1)), duration: dur });
-                    if (skill.id === 'c_bless') buffsToAdd.push({ id: 'c_bless', name: 'Blessing', type: 'buff', stat: 'str', value: Math.ceil(p.str * 0.2), duration: dur });
-                    if (skill.id === 'w_cry') buffsToAdd.push({ id: 'w_cry', name: 'War Cry', type: 'buff', stat: 'atk', value: Math.floor(stats.atk * 0.15 * levelPowerMult), duration: dur });
-                    if (skill.id === 'a_eye') buffsToAdd.push({ id: 'a_eye', name: 'Eagle Eye', type: 'buff', stat: 'critChance', value: 15 + skillLevel * 5, duration: dur });
-                    if (skill.id === 'r_van') buffsToAdd.push({ id: 'r_van', name: 'Vanish', type: 'buff', stat: 'eva', value: 20 + skillLevel * 10, duration: 2 });
-                    
-                    buffsToAdd.forEach(newB => {
-                        newBuffs = newBuffs.filter(b => b.id !== newB.id);
-                        newBuffs.push(newB);
-                    });
-                    spawnFloatingText(p.id, "BUFF", "block");
-                    return { ...p, buffs: newBuffs };
-                }
-                return p;
-            }));
+        setCurrentAnim(skill.type === 'heal' ? 'heal' : 'magical');
+        if (skill.isAoe) targets = partyRef.current;
+        else {
+            const targetCharIndex = explicitTargetIndex !== undefined ? explicitTargetIndex : allyTargetIndex;
+            targets = [party[targetCharIndex] || attacker];
         }
-        resetAtb(attacker.id);
-    }, 500);
+    }
+
+    setImpactIds(targets.map(t => (t as Enemy).instanceId || (t as Player).id));
+    
+    setTimeout(() => {
+        attacker.mp -= skill.cost;
+      
+        targets.forEach(t => {
+            let target = t;
+            const targetStats = calculateDerivedStats(target);
+            let damage = 0, heal = 0;
+            let buffsToAdd: Buff[] = [];
+
+            if (skill.type === 'attack') {
+                const isMagic = ['m_', 'c_smite'].some(prefix => skill.id.startsWith(prefix));
+                const power = isMagic ? attackerStats.mAtk : attackerStats.atk;
+                const defense = isMagic ? targetStats.mDef : targetStats.def;
+                damage = Math.max(1, Math.floor((power * (skill.basePower || 1) * levelPowerMult) - (defense * 0.5)));
+            } else if (skill.type === 'heal') {
+                heal = Math.floor(attackerStats.mAtk * (skill.basePower || 1) * levelPowerMult);
+            }
+
+            switch (skill.id) {
+                case 'w_shield_block': buffsToAdd.push({ id: 'def_buff', name: 'Shield Block', type: 'buff', stat: 'def', value: Math.floor(attackerStats.effectiveVit * 1.5), duration: 3 }); break;
+                case 'w_shattering_blow': buffsToAdd.push({ id: 'def_debuff', name: 'Armor Shattered', type: 'debuff', stat: 'def', value: -10, duration: 3 }); break;
+                case 'w_war_cry': buffsToAdd.push({ id: 'atk_buff', name: 'War Cry', type: 'buff', stat: 'atk', value: Math.floor(attackerStats.effectiveStr * 0.5), duration: 3 }); break;
+                case 'w_impale': if (Math.random() < 0.3) buffsToAdd.push({ id: 'bleed', name: 'Bleeding', type: 'debuff', stat: 'dex', value: 0.05, duration: 3 }); break;
+                case 'w_earthshatter': if (Math.random() < 0.25) buffsToAdd.push({ id: 'stun', name: 'Stunned', type: 'debuff', stat: 'dex', value: 0, duration: 1 }); break;
+                case 'm_firebolt': if (Math.random() < 0.2) buffsToAdd.push({ id: 'burn', name: 'Burning', type: 'debuff', stat: 'dex', value: 0.04, duration: 3 }); break;
+                case 'm_frostbite': if (Math.random() < 0.5) buffsToAdd.push({ id: 'slow', name: 'Slowed', type: 'debuff', stat: 'dex', value: -Math.floor(attackerStats.effectiveInt * 0.5), duration: 2 }); break;
+                case 'm_magic_shield': buffsToAdd.push({ id: 'mdef_buff', name: 'Magic Shield', type: 'buff', stat: 'mDef', value: Math.floor(attackerStats.effectiveInt * 1.2), duration: 4 }); break;
+                case 'm_blizzard': if (Math.random() < 0.8) buffsToAdd.push({ id: 'slow', name: 'Slowed', type: 'debuff', stat: 'dex', value: -Math.floor(attackerStats.effectiveInt * 0.4), duration: 3 }); break;
+                case 'm_telekinetic_shock': if (Math.random() < 0.2) buffsToAdd.push({ id: 'stun', name: 'Stunned', type: 'debuff', stat: 'dex', value: 0, duration: 1 }); break;
+                case 'm_time_warp': setAtbValues(prev => ({ ...prev, [target.id || (target as Enemy).instanceId]: ATB_MAX })); break;
+                case 'c_bless': 
+                    buffsToAdd.push({ id: 'str_buff', name: 'Blessing', type: 'buff', stat: 'str', value: Math.floor(attackerStats.effectiveInt * 0.3), duration: 4 });
+                    buffsToAdd.push({ id: 'int_buff', name: 'Blessing', type: 'buff', stat: 'int', value: Math.floor(attackerStats.effectiveInt * 0.3), duration: 4 });
+                    break;
+                case 'c_cure': target.buffs = target.buffs.filter(b => b.type === 'buff'); addLog(`${target.name}'s ailments were cleansed!`, 'heal'); break;
+                case 'c_barrier': target.shieldHp = (target.shieldHp || 0) + Math.floor(attackerStats.mAtk * 2); addLog(`${target.name} is protected by a barrier!`, 'heal'); break;
+                case 'r_gouge': if (Math.random() < 0.5) buffsToAdd.push({ id: 'acc_debuff', name: 'Gouged', type: 'debuff', stat: 'acc', value: -20, duration: 3 }); break;
+                case 'r_poison_stab': buffsToAdd.push({ id: 'poison', name: 'Poisoned', type: 'debuff', stat: 'dex', value: 0.05, duration: 4 }); break;
+                case 'r_vanish': buffsToAdd.push({ id: 'guaranteed_crit', name: 'Vanished', type: 'buff', stat: 'critChance', value: 100, duration: 2 }); addLog(`${attacker.name} vanishes!`, 'info'); break;
+                case 'r_mark_for_death': buffsToAdd.push({ id: 'mark_for_death', name: 'Marked', type: 'debuff', stat: 'damage_taken_increase', value: 0.25, duration: 5 }); break;
+            }
+
+            if (damage > 0) {
+                let shield = target.shieldHp || 0;
+                if (shield > 0) {
+                    const shieldDmg = Math.min(shield, damage);
+                    target.shieldHp = shield - shieldDmg;
+                    damage -= shieldDmg;
+                    addLog(`🛡️ Barrier on ${target.name} absorbs ${shieldDmg} damage!`, 'block');
+                }
+                target.hp = Math.max(0, target.hp - damage);
+                spawnFloatingText((target as Enemy).instanceId || (target as Player).id, `-${damage}`, 'damage');
+            }
+            if (heal > 0) {
+                target.hp = Math.min(targetStats.maxHp, target.hp + heal);
+                spawnFloatingText((target as Enemy).instanceId || (target as Player).id, `+${heal}`, 'heal');
+            }
+
+            buffsToAdd.forEach(buff => {
+                const existing = target.buffs.find(b => b.id === buff.id);
+                if (existing) existing.duration = Math.max(existing.duration, buff.duration);
+                else target.buffs.push(buff);
+                addLog(`${target.name} gains ${buff.name}!`, 'info');
+            });
+        });
+
+        setParty([...party]);
+        setActiveEnemies([...activeEnemies]);
+        
+        if (enemiesRef.current.every(e => e.hp <= 0)) {
+            handleVictory(enemiesRef.current);
+            return;
+        }
+
+        setTimeout(() => {
+            setImpactIds([]);
+            resetAtb(attacker.id);
+        }, 500);
+    }, 400);
   };
 
   const handleCastSkillOutCombat = (casterIndex: number, targetIndex: number, skill: Skill) => {
@@ -955,7 +1092,6 @@ const GameContent: React.FC = () => {
   };
 
   const handleEquip = (item: Item, playerIndex: number) => {
-    // Security check for Level requirement
     if (item.minLevel && party[playerIndex].level < item.minLevel) {
         sounds.playEffect('miss');
         return;
@@ -1043,8 +1179,7 @@ const GameContent: React.FC = () => {
       class: cls.type,
       avatar: cls.avatar,
       name: cls.type,
-      level: 1,
-      xp: 0,
+      level: 1, xp: 0,
       hp: cls.hp, maxHp: cls.hp,
       mp: cls.mp, maxMp: cls.mp,
       str: cls.str, int: cls.int, dex: cls.dex, vit: cls.vit, cha: cls.cha,
@@ -1066,7 +1201,6 @@ const GameContent: React.FC = () => {
       const p = next[playerIndex];
       if (p.skillPoints > 0) {
         const cur = p.skillLevels[skillId] || 0;
-        // Increased max skill level from 3 to 4 to accommodate +3 upgrade
         if (cur < 4) { 
           p.skillPoints--;
           p.skillLevels = { ...p.skillLevels, [skillId]: cur + 1 };
@@ -1101,22 +1235,15 @@ const GameContent: React.FC = () => {
 
   const spawnEnemies = () => {
     const enemyCount = Math.floor(Math.random() * 2) + 2;
-    let potential: Enemy[];
-
-    if (currentFloor === 0) {
-      potential = ENEMIES.filter(e => e.level === 1);
-    } else if (currentFloor === 1) {
-      // On floor 2 (index 1), only spawn level 2 and 3 enemies
-      potential = ENEMIES.filter(e => e.level === 2 || e.level === 3);
-    } else {
-      // General case for other floors
-      potential = ENEMIES.filter(e => e.level <= currentFloor + 1);
-    }
     
-    // Fallback if no enemies match the criteria for a floor
+    const minLevel = currentFloor + 1;
+    const maxLevel = currentFloor + 2;
+
+    let potential = ENEMIES.filter(e => e.level >= minLevel && e.level <= maxLevel && !e.isBoss);
+    
     if (potential.length === 0) {
-      potential = ENEMIES.filter(e => e.level <= currentFloor + 1);
-      if (potential.length === 0) potential = [ENEMIES[0]]; // Absolute fallback
+      potential = ENEMIES.filter(e => e.level <= maxLevel && !e.isBoss);
+      if (potential.length === 0) potential = [ENEMIES[0]];
     }
     
     const newEnemies: Enemy[] = [];
@@ -1124,29 +1251,43 @@ const GameContent: React.FC = () => {
     for (let i = 0; i < enemyCount; i++) {
       const template = potential[Math.floor(Math.random() * potential.length)];
       const instId = `enemy-${Date.now()}-${i}`;
-      newEnemies.push({
-        ...template, 
-        instanceId: instId,
-        hp: template.maxHp,
-        maxHp: template.maxHp,
-        mp: template.maxMp,
-        maxMp: template.maxMp,
-        buffs: []
-      });
+      newEnemies.push({ ...template, instanceId: instId, hp: template.maxHp, maxHp: template.maxHp, mp: template.maxMp, maxMp: template.maxMp, buffs: [] });
       newAtb[instId] = Math.random() * 30;
     }
     party.forEach(p => newAtb[p.id] = Math.random() * 40);
     setAtbValues(newAtb);
     setActiveEnemies(newEnemies);
-    setStepsSinceBattle(0); // Reset steps after battle starts
+    setStepsSinceBattle(0);
     addLog(`⚔️ ENCOUNTER! Monsters emerge from the shadows.`, 'combat');
     
     sounds.playEffect('encounter');
     setIsBattleTransition(true);
   };
 
+  const spawnBoss = (floorIndex: number) => {
+    const bossLevel = floorIndex + 1;
+    const boss = ENEMIES.find(e => e.isBoss && e.level > bossLevel - 2 && e.level < bossLevel + 2);
+
+    if (!boss) {
+        addLog("Error: Guardian not found for this floor.", 'miss');
+        setDefeatedBosses(prev => new Set(prev).add(floorIndex));
+        return;
+    }
+
+    const instId = `boss-${Date.now()}`;
+    const newEnemies: Enemy[] = [{ ...boss, instanceId: instId, hp: boss.maxHp, maxHp: boss.maxHp, mp: boss.maxMp, maxMp: boss.maxMp, buffs: [] }];
+    const newAtb: Record<string, number> = { [instId]: 0 };
+    party.forEach(p => newAtb[p.id] = Math.random() * 40);
+
+    setAtbValues(newAtb);
+    setActiveEnemies(newEnemies);
+    addLog(`A powerful presence emerges! You face the ${boss.name}!`, 'combat');
+    sounds.playEffect('encounter');
+    setIsBattleTransition(true);
+  };
+
   const move = useCallback((dirMod: number) => {
-    if (gameState !== 'EXPLORE' || isBattleTransition || isVictoryTransition || showMerchantIntro || showMerchantPrompt || dialogue || isMapExpanded || doorPhase !== 'none' || floorTransitionState !== 'none') return;
+    if (gameState !== 'EXPLORE' || isBattleTransition || isVictoryTransition || showMerchantIntro || showMerchantPrompt || dialogue || isMapExpanded || doorPhase !== 'none' || floorTransitionState !== 'none' || isFountainMenuOpen || isTravelMenuOpen) return;
     
     const vecs = [{ x: 0, y: -1 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }];
     const vec = vecs[currentDir];
@@ -1157,16 +1298,10 @@ const GameContent: React.FC = () => {
     
     const tile = currentMap[ny][nx];
 
-    if (tile === 1) return; // Wall
+    if (tile === 1) return;
 
-    // If moving forward into an interactive object, prevent movement unless specific conditions met (like secret wall)
-    // Secret Wall (9) is permeable. All others (Chest, NPC, Door, Stairs, Fountain) are blocked and require interaction.
-    if (dirMod === -1 && [2, 3, 4, 5, 6, 7, 8, 10, 11, 12].includes(tile)) {
-        // Block movement, interaction handled via button
-        return; 
-    }
+    if (dirMod === -1 && [2, 4, 5, 6, 7, 8, 10, 12].includes(tile)) return; 
 
-    // Handle Secret Wall Entry
     if (tile === 9) {
         const isAlreadyExplored = explored[currentFloor]?.has(`${nx},${ny}`);
         if (!isAlreadyExplored) {
@@ -1182,40 +1317,37 @@ const GameContent: React.FC = () => {
     setStepsSinceBattle(prev => prev + 1);
     setCurrentPos({ x: nx, y: ny });
     
-    // Check for random encounters when moving into empty tiles or secret walls
     if (dirMod === -1 && (tile === 0 || tile === 9) && currentFloor >= 0) {
         if (Math.random() < 0.18 && stepsSinceBattle > 10) {
             spawnEnemies();
         }
     }
 
-  }, [gameState, currentDir, currentFloor, currentPos, currentMap, explored, isBattleTransition, isVictoryTransition, showMerchantIntro, showMerchantPrompt, dialogue, isMapExpanded, stepsSinceBattle, doorPhase, townExitState, floorTransitionState]);
+  }, [gameState, currentDir, currentFloor, currentPos, currentMap, explored, isBattleTransition, isVictoryTransition, showMerchantIntro, showMerchantPrompt, dialogue, isMapExpanded, stepsSinceBattle, doorPhase, floorTransitionState, isFountainMenuOpen, isTravelMenuOpen]);
 
   const turn = useCallback((rot: number) => {
-    if (gameState !== 'EXPLORE' || isBattleTransition || isVictoryTransition || showMerchantIntro || showMerchantPrompt || dialogue || isMapExpanded || doorPhase !== 'none' || floorTransitionState !== 'none') return;
+    if (gameState !== 'EXPLORE' || isBattleTransition || isVictoryTransition || showMerchantIntro || showMerchantPrompt || dialogue || isMapExpanded || doorPhase !== 'none' || floorTransitionState !== 'none' || isFountainMenuOpen || isTravelMenuOpen) return;
     sounds.playEffect('turn');
     setCurrentDir((currentDir + rot + 4) % 4);
-  }, [gameState, currentDir, isBattleTransition, isVictoryTransition, showMerchantIntro, showMerchantPrompt, dialogue, isMapExpanded, doorPhase, floorTransitionState]);
+  }, [gameState, currentDir, isBattleTransition, isVictoryTransition, showMerchantIntro, showMerchantPrompt, dialogue, isMapExpanded, doorPhase, floorTransitionState, isFountainMenuOpen, isTravelMenuOpen]);
 
-  // Handle manual interaction from UI
   const handleInteraction = () => {
       if (!interactionTarget) return;
       const { type, pos, tileId } = interactionTarget;
       const { x, y } = pos;
 
       if (type === 'door') {
-          // Door Logic
           sounds.playEffect('door_open');
           setDoorPhase('closing');
           setTimeout(() => {
-              if (currentFloor < -1) { // Exiting a house
+              if (currentFloor < -1) {
                   if (townExitState) {
-                      setCurrentFloor(-1); // Back to town
+                      setCurrentFloor(-1);
                       setCurrentPos(townExitState.pos);
                       setCurrentDir(townExitState.dir);
                       setTownExitState(null);
                   }
-              } else { // Entering a house
+              } else {
                   setTownExitState({ pos: currentPos, dir: (currentDir + 2) % 4 });
                   const doorKey = `${x},${y}`;
                   const houseId = DOOR_LOCATIONS[doorKey];
@@ -1229,47 +1361,55 @@ const GameContent: React.FC = () => {
           }, 400); 
           setTimeout(() => setDoorPhase('none'), 800);
       } else if (type === 'stairs') {
-          // Stairs Logic
           sounds.playEffect('stairs');
-          if (tileId === 3) { // Down
-              if (currentFloor === -1) { // Town -> Dungeon
-                  setFloorTransitionState('descending');
-              } else if (currentFloor + 1 >= dungeonFloors.length) {
+          if (tileId === 3) {
+              const isBossFloor = (currentFloor + 1) % 5 === 0 && (currentFloor + 1) > 0;
+              if (isBossFloor && !defeatedBosses.has(currentFloor)) {
+                  addLog("A powerful presence blocks the way!", 'combat');
+                  spawnBoss(currentFloor);
+                  return;
+              }
+              if (currentFloor === -1) setFloorTransitionState('descending');
+              else if (currentFloor + 1 >= (dungeonData?.floors.length || 0)) {
                   addLog(`🏆 You have conquered the final floor! Returning to surface...`, 'combat');
                   setTimeout(() => setGameState('TITLE'), 3000);
               } else {
                   setFloorTransitionState('descending');
               }
-          } else if (tileId === 11) { // Up
+          } else if (tileId === 11) {
               setFloorTransitionState('ascending');
           }
       } else if (type === 'chest') {
-          // Chest Logic
           sounds.playEffect('loot');
-          const roll = Math.random();
-          let levelFactor;
-          const floorLevel = currentFloor + 1;
-          if (roll < 0.5) levelFactor = floorLevel;
-          else if (roll < 0.75) levelFactor = Math.max(1, floorLevel - Math.floor(Math.random() * 5 + 1));
-          else levelFactor = floorLevel + Math.floor(Math.random() * 5 + 1);
+          
+          const partyAverageLevel = Math.max(1, Math.floor(party.reduce((sum, p) => sum + p.level, 0) / party.length));
+          const availableItems = ITEMS.filter(item => (item.minLevel || 1) <= partyAverageLevel && item.type !== 'consumable' && item.type !== 'material');
+          
+          const baseItem = availableItems.length > 0 
+              ? availableItems[Math.floor(Math.random() * availableItems.length)]
+              : ITEMS[0];
 
-          const baseItem = ITEMS[Math.floor(Math.random() * ITEMS.length)];
-          const rolledItem = generateRandomItem(baseItem, levelFactor);
+          const magicFind = 5 + (currentFloor * 0.75);
+          const rolledItem = generateRandomItem(baseItem, partyAverageLevel, magicFind);
+          
           setSharedInventory(prev => [...prev, rolledItem]);
           
           const goldRoll = 25 + Math.floor(Math.random() * 25);
           setGold(g => g + goldRoll);
           addLog(`💰 Found ${rolledItem.name} and ${goldRoll} gold coins!`, 'loot');
           
-          const newFloors = [...dungeonFloors];
-          newFloors[currentFloor][y][x] = 0; // Remove chest
-          setDungeonFloors(newFloors);
-          setInteractionTarget(null); // Clear prompt
+          setDungeonData(prev => {
+              if (!prev) return prev;
+              const newFloors = [...prev.floors];
+              newFloors[currentFloor][y][x] = 0;
+              return {...prev, floors: newFloors};
+          });
+          setInteractionTarget(null);
       } else if (type === 'merchant') {
           if (currentFloor === -1 && !hasMetMerchant) setShowMerchantIntro(true);
           else setShowMerchantPrompt(true);
       } else if (type === 'npc') {
-          if (currentFloor === -1) return; // No generic NPCs in town map currently except merchants
+          if (currentFloor === -1) return;
           if (currentFloor < -1) {
               if (tileId === 6) {
                   setDialogueSpeaker({ name: "Lost Traveler", avatar: AVATAR_TRAVELER });
@@ -1278,85 +1418,58 @@ const GameContent: React.FC = () => {
                   setDialogueSpeaker({ name: "Old Man", avatar: AVATAR_VILLAGER });
                   setDialogue(["The Eye... it feeds on memory.", "Don't let it take yours."]);
               }
-          } else if (tileId === 12) { // Ghost
+          } else if (tileId === 12) {
               setDialogueSpeaker({ name: "Echo of the Abyss", avatar: AVATAR_GHOST });
               setDialogue(["This place is not real... it is a memory.", "The Eye is a lens, focused on a forgotten time.", "To leave is not to walk, but to remember who you were."]);
-              const newFloors = [...dungeonFloors];
-              newFloors[currentFloor][y][x] = 0; // Vanish
-              setDungeonFloors(newFloors);
+              setDungeonData(prev => {
+                if (!prev) return prev;
+                const newFloors = [...prev.floors];
+                newFloors[currentFloor][y][x] = 0;
+                return {...prev, floors: newFloors};
+              });
               setInteractionTarget(null);
           }
       } else if (type === 'fountain') {
           sounds.playEffect('heal');
-          addLog("💧 You drink from the fountain and feel refreshed.", 'heal');
-          setParty(p => p.map(char => {
-              const stats = calculateDerivedStats(char);
-              return {
-                  ...char,
-                  hp: Math.min(stats.maxHp, char.hp + 20),
-                  mp: Math.min(stats.maxMp, char.mp + 10)
-              };
-          }));
+          if (!discoveredFountains.includes(currentFloor)) {
+              setDiscoveredFountains(prev => [...prev, currentFloor].sort((a,b)=>a-b));
+              addLog(`You've discovered a new Fountain of Memory.`, 'info');
+          }
+          setIsFountainMenuOpen(true);
       }
   };
 
   const generateMerchantStock = () => {
     const levels = party.map(p => p.level);
     levels.sort((a, b) => a - b);
-    const medianLevel = levels[Math.floor(levels.length / 2)];
-    const levelFactor = 1.25 + (medianLevel - 1) * 0.25; 
+    const medianLevel = levels[Math.floor(levels.length / 2)] || 1;
+    const levelFactor = 1.25 + (medianLevel - 1) * 0.25;
+    const magicFind = medianLevel * 0.6;
     const stock: Item[] = [];
     const count = 5 + Math.floor(Math.random() * 3);
     for (let i = 0; i < count; i++) {
       const base = ITEMS[Math.floor(Math.random() * ITEMS.length)];
-      const item = generateRandomItem(base, levelFactor);
+      const item = generateRandomItem(base, levelFactor, magicFind);
       stock.push(item);
     }
     setMerchantInventory(stock);
   };
 
-  // Keyboard Controls
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
         if (gameState !== 'EXPLORE') return;
-        
         switch(e.key) {
-            case 'w':
-            case 'W':
-            case 'ArrowUp':
-                move(-1); // Forward
-                break;
-            case 's':
-            case 'S':
-            case 'ArrowDown':
-                move(1); // Backward
-                break;
-            case 'a':
-            case 'A':
-            case 'ArrowLeft':
-                turn(-1); // Left
-                break;
-            case 'd':
-            case 'D':
-            case 'ArrowRight':
-                turn(1); // Right
-                break;
-            case 'e':
-            case 'E':
-            case 'Enter':
-            case ' ':
-                handleInteraction();
-                break;
-            case 'm':
-            case 'M':
-                setIsMapExpanded(prev => !prev);
-                break;
+            case 'w': case 'W': case 'ArrowUp': move(-1); break;
+            case 's': case 'S': case 'ArrowDown': move(1); break;
+            case 'a': case 'A': case 'ArrowLeft': turn(-1); break;
+            case 'd': case 'D': case 'ArrowRight': turn(1); break;
+            case 'e': case 'E': case 'Enter': case ' ': handleInteraction(); break;
+            case 'm': case 'M': setIsMapExpanded(prev => !prev); break;
         }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gameState, move, turn, handleInteraction]); // Added handleInteraction to deps
+  }, [gameState, move, turn, handleInteraction]);
 
   const renderLogs = (ref?: React.RefObject<HTMLDivElement>) => (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-2 flex flex-col gap-1 text-sm md:text-base font-mono bg-black/60 h-full">
@@ -1383,37 +1496,16 @@ const GameContent: React.FC = () => {
   return (
     <div className="flex-1 flex flex-col h-full w-full bg-black text-emerald-500 font-mono select-none overflow-hidden relative">
       <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes prompt-glitch {
-          0% { clip: rect(44px, 9999px, 56px, 0); transform: skew(0.1deg); }
-          5% { clip: rect(12px, 9999px, 86px, 0); transform: skew(0.5deg); }
-          10% { clip: rect(67px, 9999px, 12px, 0); transform: skew(0.2deg); }
-          15% { clip: rect(0, 9999px, 0, 0); transform: skew(0); }
-          100% { clip: rect(0, 9999px, 0, 0); transform: skew(0); }
-        }
-        .animate-prompt-glitch {
-            animation: prompt-glitch 2s infinite;
-        }
+        @keyframes prompt-glitch { 0% { clip: rect(44px, 9999px, 56px, 0); transform: skew(0.1deg); } 5% { clip: rect(12px, 9999px, 86px, 0); transform: skew(0.5deg); } 10% { clip: rect(67px, 9999px, 12px, 0); transform: skew(0.2deg); } 15% { clip: rect(0, 9999px, 0, 0); transform: skew(0); } 100% { clip: rect(0, 9999px, 0, 0); transform: skew(0); } }
+        .animate-prompt-glitch { animation: prompt-glitch 2s infinite; }
       `}} />
 
-      {doorPhase !== 'none' && (
-        <div className={`absolute inset-0 bg-black z-[1000] transition-opacity duration-300 pointer-events-none ${doorPhase === 'closing' ? 'opacity-100' : 'opacity-0'}`} />
-      )}
-
-      {isSealingTransition && <SealingTransition onComplete={() => {
-        setIsSealingTransition(false);
-        setGameState('LORE');
-      }} />}
-
-      {dialogue && dialogueSpeaker && (
-        <DialogueBox 
-            speaker={dialogueSpeaker}
-            lines={dialogue}
-            onClose={() => { setDialogue(null); setDialogueSpeaker(null); }}
-        />
-      )}
-
-      {/* Interaction Prompt Overlay */}
-      {interactionTarget && !dialogue && !isMapExpanded && !showMerchantPrompt && !isBattleTransition && !isVictoryTransition && doorPhase === 'none' && floorTransitionState === 'none' && (
+      {doorPhase !== 'none' && <div className={`absolute inset-0 bg-black z-[1000] transition-opacity duration-300 pointer-events-none ${doorPhase === 'closing' ? 'opacity-100' : 'opacity-0'}`} />}
+      {isSealingTransition && <SealingTransition onComplete={() => { setIsSealingTransition(false); setGameState('LORE'); }} />}
+      {dialogue && dialogueSpeaker && <DialogueBox speaker={dialogueSpeaker} lines={dialogue} onClose={() => { setDialogue(null); setDialogueSpeaker(null); }} />}
+      {isFountainMenuOpen && <FountainMenu isTown={currentFloor === -1} onSave={() => { saveGame(); setIsFountainMenuOpen(false); }} onTravel={() => setIsTravelMenuOpen(true)} onDrink={() => { sounds.playEffect('heal'); addLog("💧 The water restores you completely.", 'heal'); setParty(p => p.map(char => { const stats = calculateDerivedStats(char); return { ...char, hp: stats.maxHp, mp: stats.maxMp }; })); setIsFountainMenuOpen(false); }} onClose={() => setIsFountainMenuOpen(false)} />}
+      {isTravelMenuOpen && <TravelMenu discoveredFountains={discoveredFountains} onTravel={handleFastTravel} onClose={() => setIsTravelMenuOpen(false)} />}
+      {interactionTarget && !dialogue && !isMapExpanded && !showMerchantPrompt && !isBattleTransition && !isVictoryTransition && doorPhase === 'none' && floorTransitionState === 'none' && !isFountainMenuOpen && !isTravelMenuOpen && (
           <div className="absolute top-[20%] left-1/2 -translate-x-1/2 z-50 animate-in fade-in zoom-in duration-200 pointer-events-auto cursor-pointer" onClick={handleInteraction}>
               <div className="bg-black/80 border-2 border-emerald-400 p-3 shadow-[0_0_20px_rgba(16,185,129,0.4)] flex flex-col items-center">
                   <div className="text-emerald-300 font-bold uppercase tracking-widest text-sm mb-1">{interactionTarget.label}</div>
@@ -1428,103 +1520,30 @@ const GameContent: React.FC = () => {
         <div className="absolute inset-0 z-[100] bg-black/95 flex flex-col p-4 animate-in zoom-in duration-200">
             <div className="flex justify-between items-center mb-4 border-b border-emerald-800 pb-2">
                 <span className="text-emerald-400 font-black uppercase tracking-widest text-xl">Tactical Map</span>
-                <button 
-                    onClick={() => setIsMapExpanded(false)}
-                    className="retro-button px-4 py-2 text-sm border-red-500 text-red-500 hover:bg-red-900"
-                >
-                    CLOSE [M]
-                </button>
+                <button onClick={() => setIsMapExpanded(false)} className="retro-button px-4 py-2 text-sm border-red-500 text-red-500 hover:bg-red-900"> CLOSE [M] </button>
             </div>
             <div className="flex-1 flex items-center justify-center overflow-hidden border-2 border-emerald-900/50 bg-black">
-                <Minimap 
-                    pos={currentPos} 
-                    dir={currentDir} 
-                    floor={currentFloor} 
-                    explored={explored[currentFloor] || new Set()} 
-                    mapData={currentMap}
-                    expanded={true}
-                />
+                <Minimap pos={currentPos} dir={currentDir} floor={currentFloor} explored={explored[currentFloor] || new Set()} mapData={currentMap} expanded={true} />
             </div>
-            <div className="mt-2 text-center text-sm text-emerald-800 font-bold uppercase">
-                {currentFloor === -1 ? 'SAFE HAVEN' : `Floor B${currentFloor + 1}`} • {explored[currentFloor]?.size || 0} Sectors Charted
-            </div>
+            <div className="mt-2 text-center text-sm text-emerald-800 font-bold uppercase"> {currentFloor === -1 ? 'SAFE HAVEN' : `Floor B${currentFloor + 1}`} • {explored[currentFloor]?.size || 0} Sectors Charted </div>
         </div>
       )}
 
       {isVictoryTransition && <VictoryTransition />}
-      
-      {isBattleTransition && (
-        <BattleTransition onComplete={() => {
-            setIsBattleTransition(false);
-            setGameState('COMBAT');
-            startAtbClock();
-        }} />
-      )}
-
-      {floorTransitionState !== 'none' && (
-        <FloorTransition 
-            direction={floorTransitionState}
-            floor={currentFloor}
-            onMidpoint={() => {
-                if (floorTransitionState === 'descending') {
-                    if (currentFloor === -1) { // Town to Dungeon
-                        setCurrentFloor(0);
-                        setCurrentPos({ x: 1, y: 1 });
-                    } else { // Deeper in Dungeon
-                        setCurrentFloor(f => f + 1);
-                        setCurrentPos(currentPos); // Appear where stairs down were
-                    }
-                } else { // Ascending
-                    if (currentFloor === 0) { // Dungeon to Town
-                        setCurrentFloor(-1);
-                        setCurrentPos({ x: 6, y: 1 }); // Appear in front of dungeon entrance
-                    } else { // Up a floor in dungeon
-                        const prevFloorStairsPos = stairsDownLocations[currentFloor - 1];
-                        setCurrentFloor(f => f - 1);
-                        if (prevFloorStairsPos) {
-                            setCurrentPos(prevFloorStairsPos); // Appear where stairs down were on the upper floor
-                        }
-                    }
-                }
-            }}
-            onComplete={() => setFloorTransitionState('none')}
-        />
-      )}
-
-      {showMerchantIntro && (
-        <MerchantConversation 
-          merchantSprite={MERCHANT_AVATAR}
-          onComplete={() => {
-            setShowMerchantIntro(false);
-            setHasMetMerchant(true);
-            setShowMerchantPrompt(true); 
-          }}
-        />
-      )}
-
+      {isBattleTransition && <BattleTransition onComplete={() => { setIsBattleTransition(false); setGameState('COMBAT'); startAtbClock(); }} />}
+      {floorTransitionState !== 'none' && <FloorTransition floor={currentFloor} type={floorTransitionState} onMidpoint={() => { if (floorTransitionState === 'descending') { if (currentFloor === -1) { setCurrentFloor(0); const pos = dungeonData?.stairsUpLocations[0]; if (pos) setCurrentPos(pos); setCurrentDir(Direction.NORTH); } else { const targetFloor = currentFloor + 1; if (dungeonData?.floors[targetFloor]) { setCurrentFloor(targetFloor); const pos = dungeonData.stairsUpLocations[targetFloor]; if (pos) setCurrentPos(pos); } } } else { if (currentFloor === 0) { setCurrentFloor(-1); setCurrentPos({ x: 7, y: 2 }); setCurrentDir(Direction.SOUTH); } else { const targetFloor = currentFloor - 1; setCurrentFloor(targetFloor); const pos = dungeonData?.stairsDownLocations[targetFloor]; if (pos) setCurrentPos(pos); } } }} onComplete={() => setFloorTransitionState('none')} />}
+      {showMerchantIntro && <MerchantConversation merchantSprite={MERCHANT_AVATAR} onComplete={() => { setShowMerchantIntro(false); setHasMetMerchant(true); setShowMerchantPrompt(true); }} />}
       {showMerchantPrompt && !showMerchantIntro && (
-        <div className="absolute inset-0 z-[100] bg-black/90 flex items-center justify-center p-8 animate-in fade-in duration-300 backdrop-blur-md">
+        <div className="absolute inset-0 z-[100] bg-black/90 flex items-center justify-center p-8 backdrop-blur-md animate-in fade-in duration-300">
             <div className="bg-[#020402] border-4 border-emerald-500 p-8 w-full shadow-[0_0_80px_rgba(51,255,51,0.2)] flex flex-col items-center gap-8 max-w-md relative">
                 <div className="absolute -top-2 -left-2 w-4 h-4 border-t-4 border-l-4 border-emerald-400" />
                 <div className="absolute -top-2 -right-2 w-4 h-4 border-t-4 border-r-4 border-emerald-400" />
                 <div className="absolute -bottom-2 -left-2 w-4 h-4 border-b-4 border-l-4 border-emerald-400" />
                 <div className="absolute -bottom-2 -right-2 w-4 h-4 border-b-4 border-r-4 border-emerald-400" />
-
                 <div className="text-center flex flex-col items-center">
-                    {MERCHANT_AVATAR ? (
-                      <div className="w-32 h-32 mb-6 border-2 border-emerald-900 bg-emerald-950/20 p-4 shadow-[0_0_30px_rgba(51,255,51,0.3)] relative group">
-                        <img src={MERCHANT_AVATAR} className="w-full h-full object-contain pixelated relative z-10 brightness-125" alt="Merchant" />
-                        <div className="absolute inset-0 bg-emerald-500/10 animate-pulse" />
-                        <div className="absolute inset-0 bg-emerald-500/20 animate-prompt-glitch pointer-events-none" />
-                      </div>
-                    ) : (
-                      <div className="text-4xl mb-2">💎</div>
-                    )}
+                    {MERCHANT_AVATAR ? (<div className="w-32 h-32 mb-6 border-2 border-emerald-900 bg-emerald-950/20 p-4 shadow-[0_0_30px_rgba(51,255,51,0.3)] relative group"> <img src={MERCHANT_AVATAR} className="w-full h-full object-contain pixelated relative z-10 brightness-125" alt="Merchant" /> <div className="absolute inset-0 bg-emerald-500/10 animate-pulse" /> <div className="absolute inset-0 bg-emerald-500/20 animate-prompt-glitch pointer-events-none" /> </div>) : (<div className="text-4xl mb-2">💎</div>)}
                     <h3 className="text-3xl font-black text-emerald-400 tracking-[0.4em] uppercase mb-4 text-shadow-glow">INCOMING SIGNAL</h3>
-                    <div className="text-sm md:text-base text-emerald-600 leading-relaxed font-bold bg-emerald-950/20 p-4 border border-emerald-900">
-                        <span className="text-emerald-300">"TRANSFER REQUEST DETECTED...</span> 
-                        <br/>Greetings, data-travelers. I have salvaged treasures for your credits. Do you accept the connection?"
-                    </div>
+                    <div className="text-sm md:text-base text-emerald-600 leading-relaxed font-bold bg-emerald-950/20 p-4 border border-emerald-900"> <span className="text-emerald-300">"TRANSFER REQUEST DETECTED...</span> <br/>Greetings, data-travelers. I have salvaged treasures for your credits. Do you accept the connection?" </div>
                 </div>
                 <div className="flex gap-6 w-full">
                     <button onClick={() => { setShowMerchantPrompt(false); generateMerchantStock(); setGameState('MERCHANT'); }} className="flex-1 retro-button py-4 text-base md:text-lg border-emerald-400 hover:scale-105 transition-transform">ACCEPT_LINK</button>
@@ -1537,12 +1556,7 @@ const GameContent: React.FC = () => {
       {gameState === 'TITLE' && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#050000] overflow-hidden select-none">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,#150000_0%,#000_80%)] z-0" />
-            <div className="absolute inset-0 opacity-[0.25] pointer-events-none z-0" 
-                 style={{ 
-                     backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 40px, #331111 40px, #331111 42px), repeating-linear-gradient(90deg, transparent, transparent 80px, #331111 80px, #331111 82px)',
-                     backgroundSize: '160px 80px',
-                 }} 
-            />
+            <div className="absolute inset-0 opacity-[0.25] pointer-events-none z-0" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 40px, #331111 40px, #331111 42px), repeating-linear-gradient(90deg, transparent, transparent 80px, #331111 80px, #331111 82px)', backgroundSize: '160px 80px' }} />
             <div className="absolute inset-0 pointer-events-none z-1 overflow-hidden">
                 <div className="absolute top-0 left-0 w-[300%] h-full bg-[radial-gradient(ellipse_at_50%_50%,rgba(60,0,0,0.15)_0%,transparent_70%)] animate-fog-scroll" />
                 <div className="absolute top-1/2 left-0 w-[400%] h-[300px] bg-[linear-gradient(to_right,transparent_0%,rgba(40,0,0,0.25)_50%,transparent_100%)] blur-[70px] animate-mist-scroll opacity-60" />
@@ -1550,52 +1564,24 @@ const GameContent: React.FC = () => {
             <div className={`absolute inset-0 bg-black transition-opacity duration-[2000ms] pointer-events-none z-[60] ${isDescending ? 'opacity-100' : 'opacity-0'}`} />
             <div className={`z-[70] flex flex-col items-center space-y-10 max-w-4xl w-full relative transition-all duration-1000 ${isDescending ? 'scale-150 opacity-0' : 'scale-100 opacity-100'}`}>
                 <div className="flex flex-col items-center space-y-2 relative group cursor-default text-center">
-                    <div className="text-[#882222] font-serif tracking-[1.5em] text-xs md:text-base uppercase animate-pulse mb-2 font-bold">
-                        &mdash; FORSAKEN DEPTHS &mdash;
-                    </div>
+                    <div className="text-[#882222] font-serif tracking-[1.5em] text-xs md:text-base uppercase animate-pulse mb-2 font-bold"> &mdash; FORSAKEN DEPTHS &mdash; </div>
                     <div className="relative">
                         <div className="text-sm md:text-xl font-serif text-[#aa3333] tracking-[0.8em] mb-2 italic opacity-90 uppercase">Dungeon of the</div>
-                        <h1 className="text-6xl md:text-9xl font-black text-transparent bg-clip-text bg-gradient-to-b from-[#ff4444] via-[#cc0000] to-[#220000] tracking-tighter drop-shadow-[0_10px_30px_rgba(200,0,0,0.7)] relative z-10 font-serif leading-none filter drop-shadow(0 0 10px #ff000033)"
-                            style={{ textShadow: '4px 4px 0px #000, -2px -2px 0px #000, 0 0 50px rgba(136,0,0,0.8)' }}>
-                            CRIMSON EYE
-                        </h1>
+                        <h1 className="text-6xl md:text-9xl font-black text-transparent bg-clip-text bg-gradient-to-b from-[#ff4444] via-[#cc0000] to-[#220000] tracking-tighter drop-shadow-[0_10px_30px_rgba(200,0,0,0.7)] relative z-10 font-serif leading-none filter drop-shadow(0 0 10px #ff000033)" style={{ textShadow: '4px 4px 0px #000, -2px -2px 0px #000, 0 0 50px rgba(136,0,0,0.8)' }}>CRIMSON EYE</h1>
                     </div>
                 </div>
                 <div className="flex flex-col gap-6 w-full max-w-sm mt-10 px-6">
-                    <button 
-                        onClick={() => { 
-                            sounds.playEffect('menu_select');
-                            setIsDescending(true);
-                            setTimeout(() => {
-                                setIsDescending(false);
-                                setGameState('CREATION'); 
-                                setCreatingParty([]);
-                                setCreationPhase('SELECTING');
-                            }, 2500);
-                        }} 
-                        className="group relative px-8 py-6 bg-[#080000] border-2 border-[#441111] hover:border-[#ff4444] hover:bg-[#1a0000] transition-all duration-300 overflow-hidden text-center shadow-[0_10px_30px_rgba(0,0,0,0.8)] rounded-sm"
-                    >
+                    {saveGameExists && (
+                        <button onClick={() => { sounds.init(); sounds.playEffect('menu_select'); setIsDescending(true); setTimeout(() => { setIsDescending(false); loadGame(); }, 2500); }} className="group relative px-8 py-4 bg-[#00081a] border-2 border-[#112244] hover:border-[#4488ff] hover:bg-[#00001a] transition-all duration-300 overflow-hidden text-center shadow-[0_10px_30px_rgba(0,0,0,0.8)] rounded-sm">
+                            <div className="absolute inset-0 w-full h-full bg-[radial-gradient(circle_at_50%_50%,rgba(0,80,200,0.3),transparent)] opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <span className="text-xl md:text-2xl font-black tracking-[0.4em] text-[#3366aa] group-hover:text-[#4488ff] uppercase relative z-10 flex items-center justify-center gap-4 transition-all group-hover:scale-105" style={{ textShadow: '2px 2px 0px #000' }}>CONTINUE</span>
+                        </button>
+                    )}
+                    <button onClick={() => { sounds.init(); sounds.playEffect('menu_select'); setIsDescending(true); setTimeout(() => { setIsDescending(false); setGameState('CREATION'); setCreatingParty([]); setCreationPhase('SELECTING'); }, 2500); }} className="group relative px-8 py-6 bg-[#080000] border-2 border-[#441111] hover:border-[#ff4444] hover:bg-[#1a0000] transition-all duration-300 overflow-hidden text-center shadow-[0_10px_30px_rgba(0,0,0,0.8)] rounded-sm">
                         <div className="absolute inset-0 w-full h-full bg-[radial-gradient(circle_at_50%_50%,rgba(200,0,0,0.3),transparent)] opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <span className="text-xl md:text-2xl font-black tracking-[0.4em] text-[#aa3333] group-hover:text-[#ff4444] uppercase relative z-10 flex items-center justify-center gap-4 transition-all group-hover:scale-105"
-                              style={{ textShadow: '2px 2px 0px #000' }}>
-                            DESCEND
-                        </span>
+                        <span className="text-xl md:text-2xl font-black tracking-[0.4em] text-[#aa3333] group-hover:text-[#ff4444] uppercase relative z-10 flex items-center justify-center gap-4 transition-all group-hover:scale-105" style={{ textShadow: '2px 2px 0px #000' }}>NEW GAME</span>
                     </button>
-                    <div className="grid grid-cols-2 gap-4">
-                        <button disabled className="group px-4 py-4 bg-[#050000] border border-[#331111] opacity-40 cursor-not-allowed flex items-center justify-center">
-                            <span className="text-xs md:text-sm font-bold tracking-widest text-[#662222] uppercase">
-                                HISTORY
-                            </span>
-                        </button>
-                        <button disabled className="group px-4 py-4 bg-[#050000] border border-[#331111] opacity-40 cursor-not-allowed flex items-center justify-center">
-                            <span className="text-xs md:text-sm font-bold tracking-widest text-[#662222] uppercase">
-                                SCROLLS
-                            </span>
-                        </button>
-                    </div>
-                    <div className="text-[10px] md:text-xs text-[#552222] text-center mt-12 font-serif tracking-[0.3em] italic opacity-70 uppercase font-black">
-                        Fate waits in the dark.
-                    </div>
+                    <div className="text-[10px] md:text-xs text-[#552222] text-center mt-12 font-serif tracking-[0.3em] italic opacity-70 uppercase font-black"> Fate waits in the dark. </div>
                 </div>
             </div>
             <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-[2500ms] ease-in-out" ${isDescending ? 'scale-[50] rotate-0 z-50' : 'scale-100 rotate-0 z-0'}`}>
@@ -1612,54 +1598,19 @@ const GameContent: React.FC = () => {
                     </div>
                 </div>
             </div>
-            <style dangerouslySetInnerHTML={{ __html: `
-                @keyframes fog-scroll {
-                    0% { transform: translateX(-25%) translateY(-5%); }
-                    50% { transform: translateX(0%) translateY(0%); }
-                    100% { transform: translateX(-25%) translateY(-5%); }
-                }
-                .animate-fog-scroll { animation: fog-scroll 30s infinite ease-in-out; }
-                @keyframes mist-scroll {
-                    0% { transform: translateX(0); }
-                    100% { transform: translateX(-50%); }
-                }
-                .animate-mist-scroll { animation: mist-scroll 20s infinite linear; }
-                @keyframes pulsate-eye {
-                    0%, 100% { transform: rotate(45deg) scale(1); box-shadow: 0 0 80px rgba(150,0,0,0.5); }
-                    50% { transform: rotate(45deg) scale(1.03); box-shadow: 0 0 120px rgba(255,0,0,0.7); }
-                }
-                .animate-pulsate-eye { animation: pulsate-eye 4s infinite ease-in-out; }
-                @keyframes look-around {
-                    0%, 100% { transform: translate(0, 0); }
-                    15% { transform: translate(-4px, -2px); }
-                    30% { transform: translate(4px, 2px); }
-                    45% { transform: translate(-3px, 4px); }
-                    60% { transform: translate(5px, -3px); }
-                    80% { transform: translate(-2px, -2px); }
-                }
-                .animate-look-around { animation: look-around 8s infinite ease-in-out; }
-                @keyframes spin-slow {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
-                }
-                .animate-spin-slow { animation: spin-slow 12s infinite linear; }
-            `}} />
+            <style dangerouslySetInnerHTML={{ __html: ` @keyframes fog-scroll { 0% { transform: translateX(-25%) translateY(-5%); } 50% { transform: translateX(0%) translateY(0%); } 100% { transform: translateX(-25%) translateY(-5%); } } .animate-fog-scroll { animation: fog-scroll 30s infinite ease-in-out; } @keyframes mist-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } } .animate-mist-scroll { animation: mist-scroll 20s infinite linear; } @keyframes pulsate-eye { 0%, 100% { transform: rotate(45deg) scale(1); box-shadow: 0 0 80px rgba(150,0,0,0.5); } 50% { transform: rotate(45deg) scale(1.03); box-shadow: 0 0 120px rgba(255,0,0,0.7); } } .animate-pulsate-eye { animation: pulsate-eye 4s infinite ease-in-out; } @keyframes look-around { 0%, 100% { transform: translate(0, 0); } 20% { transform: translate(-8px, -4px); } 40% { transform: translate(8px, 4px); } 60% { transform: translate(-6px, 8px); } 80% { transform: translate(10px, -6px); } } .animate-look-around { animation: look-around 8s infinite ease-in-out; } @keyframes spin-slow { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } } .animate-spin-slow { animation: spin-slow 12s infinite linear; } `}} />
         </div>
       )}
 
-      {gameState === 'LORE' && <LoreCutscene onComplete={() => { 
-        const { floors, stairsDownLocations } = generateDungeon();
-        setDungeonFloors(floors);
-        setStairsDownLocations(stairsDownLocations);
-        setTownMap(generateTownMap());
-        setCurrentFloor(-1);
-        setCurrentPos({ x: 6, y: 3 }); // Adjusted Spawn point for new Town Map size
-        setCurrentDir(Direction.SOUTH);
-        setExplored({});
-        setGameState('EXPLORE');
-        addLog("You arrive at a lonely outpost, a grim haven.", 'info');
-      }} />}
-      
+      {gameState === 'LORE' && <LoreCutscene onComplete={() => setGameState('GENERATING')} />}
+      {gameState === 'GENERATING' && (
+        <div className="absolute inset-0 z-[1000] flex flex-col items-center justify-center bg-black text-emerald-500 font-mono">
+            <div className="text-6xl mb-4 animate-pulse">⚙️</div>
+            <div className="text-2xl font-black uppercase tracking-widest animate-pulse">Constructing the Abyss...</div>
+            <div className="mt-4 w-64 h-2 bg-emerald-900 overflow-hidden rounded-full"> <div className="h-full bg-emerald-500 w-full animate-[loading-bar_3s_infinite_linear]" /> </div>
+            <style dangerouslySetInnerHTML={{ __html: ` @keyframes loading-bar { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } } `}} />
+        </div>
+      )}
       {gameState === 'CREATION' && (
         <div className="absolute inset-0 z-50 flex flex-col bg-black text-emerald-500 font-mono select-none overflow-hidden">
             <div className="z-10 flex flex-col h-full p-4 md:p-8">
@@ -1669,13 +1620,8 @@ const GameContent: React.FC = () => {
                           <div className="grid grid-cols-1 gap-2">
                             {CLASSES.map((cls) => (
                                 <button key={cls.type} onClick={() => handleAddChar(cls)} disabled={creatingParty.length >= 3} className={`relative group flex items-center gap-3 p-2 border-2 text-left transition-all duration-200 ${creatingParty.length >= 3 ? 'opacity-40 border-gray-900 cursor-not-allowed' : 'border-emerald-900/60 hover:border-emerald-500 hover:bg-emerald-950/30'}`}>
-                                    <div className="w-12 h-12 shrink-0 border border-emerald-800 bg-black relative overflow-hidden">
-                                        <img src={cls.avatar} className="w-full h-full object-contain pixelated" alt={cls.type} />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="text-lg font-black text-emerald-300 uppercase leading-none mb-1">{cls.type}</div>
-                                        <div className="text-sm text-emerald-600/80 leading-tight">{cls.description.substring(0, 40)}...</div>
-                                    </div>
+                                    <div className="w-12 h-12 shrink-0 border border-emerald-800 bg-black relative overflow-hidden"> <img src={cls.avatar} className="w-full h-full object-contain pixelated" alt={cls.type} /> </div>
+                                    <div className="flex-1 min-w-0"> <div className="text-lg font-black text-emerald-300 uppercase leading-none mb-1">{cls.type}</div> <div className="text-sm text-emerald-600/80 leading-tight">{cls.description.substring(0, 40)}...</div> </div>
                                     <div className="text-xl text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity font-bold px-2">+</div>
                                 </button>
                             ))}
@@ -1684,28 +1630,16 @@ const GameContent: React.FC = () => {
                     </div>
                     <div className="flex-1 flex flex-col gap-4 min-w-0 h-full relative">
                         <div className="flex-1 flex flex-row gap-4 h-full min-h-0 perspective-[1000px]">
-                            {creatingParty.length === 0 && (
-                                <div className="w-full h-full flex flex-col items-center justify-center text-emerald-900/40 border-4 border-dashed border-emerald-900/20 bg-emerald-950/5 animate-pulse">
-                                    <div className="text-6xl mb-4 opacity-30">⚰️</div>
-                                    <div className="text-2xl font-black uppercase tracking-widest">ROSTER EMPTY</div>
-                                    <div className="text-base mt-2">Initializing Soul Transfer...</div>
-                                </div>
-                            )}
+                            {creatingParty.length === 0 && ( <div className="w-full h-full flex flex-col items-center justify-center text-emerald-900/40 border-4 border-dashed border-emerald-900/20 bg-emerald-950/5 animate-pulse"> <div className="text-6xl mb-4 opacity-30">⚰️</div> <div className="text-2xl font-black uppercase tracking-widest">ROSTER EMPTY</div> <div className="text-base mt-2">Initializing Soul Transfer...</div> </div> )}
                             {creatingParty.map((cls, i) => (
                                 <div key={i} className="relative group animate-in zoom-in duration-500 h-full flex-1 min-w-0 shadow-2xl hover:flex-[1.1] transition-all ease-out">
-                                    <div className="flex-1 overflow-hidden flex flex-col h-full border-4 border-emerald-900/50">
-                                      <CharacterCard player={{...cls, class: cls.type, level: 1}} stats={calculateDerivedStats({...cls, skillLevels: {}, buffs: []})} />
-                                    </div>
+                                    <div className="flex-1 overflow-hidden flex flex-col h-full border-4 border-emerald-900/50"> <CharacterCard player={{...cls, class: cls.type, level: 1}} stats={calculateDerivedStats({...cls, skillLevels: {}, buffs: []})} /> </div>
                                     <button onClick={() => { setCreatingParty(prev => prev.filter((_, idx) => idx !== i)); if (creationPhase === 'CONFIRMING') setCreationPhase('SELECTING'); }} className="absolute -top-3 -right-3 w-8 h-8 bg-red-900 border-2 border-red-500 text-white flex items-center justify-center font-black text-lg hover:bg-red-600 z-50 shadow-[0_0_15px_rgba(255,0,0,0.5)] transition-all hover:scale-110 rounded-full">✕</button>
                                 </div>
                             ))}
                         </div>
                         <div className="mt-auto pt-4 border-t border-emerald-900 shrink-0">
-                            {creationPhase === 'CONFIRMING' ? (
-                                <button onClick={handleConfirmParty} className="w-full py-4 text-2xl font-black bg-emerald-600 text-black border-2 border-emerald-400 hover:bg-emerald-500 hover:scale-[1.02] transition-all shadow-[0_0_20px_rgba(16,185,129,0.4)]">BEGIN DESCENT</button>
-                            ) : (
-                                <div className="w-full py-4 text-center text-emerald-800 font-bold border-2 border-dashed border-emerald-900 bg-emerald-950/10 cursor-not-allowed text-lg">SELECT {3 - creatingParty.length} MORE HEROES</div>
-                            )}
+                            {creationPhase === 'CONFIRMING' ? ( <button onClick={handleConfirmParty} className="w-full py-4 text-2xl font-black bg-emerald-600 text-black border-2 border-emerald-400 hover:bg-emerald-500 hover:scale-[1.02] transition-all shadow-[0_0_20px_rgba(16,185,129,0.4)]">BEGIN DESCENT</button> ) : ( <div className="w-full py-4 text-center text-emerald-800 font-bold border-2 border-dashed border-emerald-900 bg-emerald-950/10 cursor-not-allowed text-lg">SELECT {3 - creatingParty.length} MORE HEROES</div> )}
                         </div>
                     </div>
                 </div>
@@ -1717,38 +1651,15 @@ const GameContent: React.FC = () => {
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
           <div className="flex-1 flex flex-col min-w-0 relative border-r border-emerald-900">
             <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
-                <DungeonRenderer 
-                    pos={currentPos} 
-                    dir={currentDir} 
-                    floor={currentFloor} 
-                    merchantSprite={MERCHANT_AVATAR} 
-                    fountainSprite={TEXTURE_FOUNTAIN}
-                    villagerSprite={AVATAR_VILLAGER}
-                    ghostSprite={AVATAR_GHOST}
-                    mapData={currentMap} 
-                    wallBrickTexture={TEXTURE_WALL_BRICK}
-                    wallStoneTexture={TEXTURE_WALL_STONE}
-                    wallMetalTexture={TEXTURE_WALL_METAL}
-                    wallCityTexture={TEXTURE_WALL_CITY}
-                    doorTexture={TEXTURE_DOOR}
-                    stairsUpSprite={SPRITE_STAIRS_UP}
-                />
+                <DungeonRenderer pos={currentPos} dir={currentDir} floor={currentFloor} merchantSprite={MERCHANT_AVATAR} fountainSprite={TEXTURE_FOUNTAIN} villagerSprite={AVATAR_VILLAGER} ghostSprite={AVATAR_GHOST} mapData={currentMap} wallBrickTexture={TEXTURE_WALL_BRICK} wallStoneTexture={TEXTURE_WALL_STONE} wallMetalTexture={TEXTURE_WALL_METAL} wallCityTexture={TEXTURE_WALL_CITY} doorTexture={TEXTURE_DOOR} stairsUpSprite={SPRITE_STAIRS_UP} />
             </div>
-            <div className="h-48 hidden md:flex min-h-0 border-t border-emerald-900 shrink-0">
-                 {renderLogs(logEndRefDesktop)}
-            </div>
+            <div className="h-48 hidden md:flex min-h-0 border-t border-emerald-900 shrink-0"> {renderLogs(logEndRefDesktop)} </div>
           </div>
           <div className="w-full md:w-96 flex-none flex flex-col md:bg-black/90 md:h-full">
             <div className="p-3 md:p-4 border-b border-emerald-900 flex flex-col gap-4">
                  <div className="flex justify-center relative">
                     <Minimap pos={currentPos} dir={currentDir} floor={currentFloor} explored={explored[currentFloor] || new Set()} mapData={currentMap} />
-                    <button 
-                        onClick={() => setIsMapExpanded(true)}
-                        className="absolute bottom-2 right-2 bg-emerald-900/80 border border-emerald-500 text-emerald-300 w-6 h-6 flex items-center justify-center hover:bg-emerald-700 text-xs font-bold rounded-sm z-20"
-                        title="Expand Map [M]"
-                    >
-                        +
-                    </button>
+                    <button onClick={() => setIsMapExpanded(true)} className="absolute bottom-2 right-2 bg-emerald-900/80 border border-emerald-500 text-emerald-300 w-6 h-6 flex items-center justify-center hover:bg-emerald-700 text-xs font-bold rounded-sm z-20" title="Expand Map [M]">+</button>
                  </div>
                  <div className="md:hidden flex justify-center gap-2"><button onClick={() => move(-1)} className="retro-button p-3 text-lg leading-none">▲</button></div>
                  <div className="md:hidden flex justify-center gap-2">
@@ -1766,38 +1677,21 @@ const GameContent: React.FC = () => {
                   const xpProgress = Math.min(100, (p.xp / xpToNext) * 100);
 
                   return (
-                    <div 
-                        key={p.id} 
-                        onClick={() => isSelectedForAction && executeQuickAction(i)}
-                        className={`text-sm md:text-base border p-2 flex gap-3 items-start transition-all cursor-pointer relative
-                            ${p.hp <= 0 ? 'border-red-900 bg-red-950/20 opacity-50' : 'border-emerald-900 md:bg-emerald-950/10'}
-                            ${isSelectedForAction ? 'hover:bg-emerald-500/20 hover:border-emerald-400 animate-pulse' : ''}
-                        `}
-                    >
+                    <div key={p.id} onClick={() => isSelectedForAction && executeQuickAction(i)} className={`text-sm md:text-base border p-2 flex gap-3 items-start transition-all cursor-pointer relative ${p.hp <= 0 ? 'border-red-900 bg-red-950/20 opacity-50' : 'border-emerald-900 md:bg-emerald-950/10'} ${isSelectedForAction ? 'hover:bg-emerald-500/20 hover:border-emerald-400 animate-pulse' : ''}`}>
                         <img src={p.avatar} alt={p.class} className="w-10 h-10 md:w-12 md:h-12 border border-emerald-800 bg-black object-contain pixelated hidden md:block shrink-0" />
                         <div className="flex-1 min-w-0 flex flex-col gap-1">
                           <div className="flex justify-between items-center">
                               <div className={`font-black uppercase ${p.hp <= 0 ? 'text-red-500' : 'text-white'} truncate text-base md:text-lg`}>{p.class}</div>
                               <div className="text-xs md:text-sm font-bold text-emerald-400 border border-emerald-900/50 px-1 bg-black/40">LV {p.level}</div>
                           </div>
-                          
-                          {/* HP Bar */}
                           <div className="w-full bg-red-950/50 h-3 border border-red-900/30 relative">
                               <div className="absolute inset-0 bg-red-600 transition-all duration-300" style={{ width: `${(p.hp / stats.maxHp) * 100}%` }} />
-                              <div className="absolute inset-0 flex items-center justify-center text-[10px] md:text-xs font-bold text-white drop-shadow-md z-10 leading-none">
-                                  HP {p.hp}/{stats.maxHp}
-                              </div>
+                              <div className="absolute inset-0 flex items-center justify-center text-[10px] md:text-xs font-bold text-white drop-shadow-md z-10 leading-none">HP {p.hp}/{stats.maxHp}</div>
                           </div>
-
-                          {/* MP Bar */}
                           <div className="w-full bg-blue-950/50 h-3 border border-blue-900/30 relative">
                               <div className="absolute inset-0 bg-blue-500 transition-all duration-300" style={{ width: `${(p.mp / stats.maxMp) * 100}%` }} />
-                              <div className="absolute inset-0 flex items-center justify-center text-[10px] md:text-xs font-bold text-white drop-shadow-md z-10 leading-none">
-                                  MP {p.mp}/{stats.maxMp}
-                              </div>
+                              <div className="absolute inset-0 flex items-center justify-center text-[10px] md:text-xs font-bold text-white drop-shadow-md z-10 leading-none">MP {p.mp}/{stats.maxMp}</div>
                           </div>
-
-                          {/* XP Bar */}
                           <div className="w-full bg-purple-950/50 h-1.5 mt-0.5 border border-purple-900/30 relative" title={`XP: ${p.xp}/${xpToNext}`}>
                               <div className="absolute inset-0 bg-purple-500 transition-all duration-300" style={{ width: `${xpProgress}%` }} />
                           </div>
@@ -1815,162 +1709,41 @@ const GameContent: React.FC = () => {
             <div className="flex-1 border-t border-emerald-900 bg-black/40 overflow-hidden flex flex-col p-2 min-h-[150px]">
                 {quickActionTargeting ? (
                     <div className="flex-1 flex flex-col items-center justify-center animate-in zoom-in duration-200">
-                        <div className="text-emerald-400 font-bold uppercase tracking-widest mb-2 text-center text-sm">
-                            Select Target for<br/>
-                            <span className="text-white text-base">{quickActionTargeting.item?.name || quickActionTargeting.skill?.name}</span>
-                        </div>
+                        <div className="text-emerald-400 font-bold uppercase tracking-widest mb-2 text-center text-sm">Select Target for<br/><span className="text-white text-base">{quickActionTargeting.item?.name || quickActionTargeting.skill?.name}</span></div>
                         <button onClick={() => setQuickActionTargeting(null)} className="retro-button px-4 py-1 text-sm border-red-500 text-red-500">CANCEL</button>
                     </div>
-                ) : (
-                    <>
-                        <div className="text-xs uppercase font-bold text-emerald-700 tracking-wider mb-2 text-center border-b border-emerald-900/30 pb-1">Quick Cast</div>
-                        <div className="overflow-y-auto custom-scrollbar flex-1">
-                            {sharedInventory.some(i => i.type === 'consumable') && (
-                                <div className="mb-3">
-                                    <div className="text-[11px] text-emerald-600 font-bold mb-1 pl-1">CONSUMABLES</div>
-                                    <div className="grid grid-cols-2 gap-1">
-                                        {Array.from(new Set(sharedInventory.filter(i => i.type === 'consumable').map(i => i.id))).map(id => {
-                                            const item = sharedInventory.find(i => i.id === id)!;
-                                            const count = sharedInventory.filter(i => i.id === id).length;
-                                            return (
-                                                <button key={id} onClick={() => handleQuickAction({type: 'item', item})} className="text-[11px] border border-emerald-900/50 bg-emerald-950/20 hover:bg-emerald-900/40 p-1 flex justify-between items-center text-left">
-                                                    <span className="truncate flex-1 text-emerald-400">{item.name}</span>
-                                                    <span className="text-white font-bold ml-1">x{count}</span>
-                                                </button>
-                                            )
-                                        })}
-                                    </div>
-                                </div>
-                            )}
-                            <div className="text-[11px] text-cyan-600 font-bold mb-1 pl-1">SUPPORT SPELLS</div>
-                            <div className="grid grid-cols-1 gap-1">
-                                {party.map((p, pIdx) => {
-                                    const usable = getUsableSkills(p);
-                                    if (usable.length === 0) return null;
-                                    return (
-                                        <div key={p.id} className="flex gap-1 items-center bg-black/20 p-1 border border-cyan-900/20">
-                                            <div className="w-4 h-4 bg-cyan-900 text-[10px] flex items-center justify-center text-white font-bold">{p.class.substring(0,1)}</div>
-                                            <div className="flex-1 flex flex-wrap gap-1">
-                                                {usable.map(s => (
-                                                    <button 
-                                                        key={s.id} 
-                                                        disabled={p.mp < s.cost}
-                                                        onClick={() => handleQuickAction({type: 'skill', skill: s, sourceIndex: pIdx})}
-                                                        className={`text-[11px] px-1.5 py-0.5 border ${p.mp >= s.cost ? 'border-cyan-700 text-cyan-300 hover:bg-cyan-900/40' : 'border-gray-800 text-gray-600 cursor-not-allowed'}`}
-                                                    >
-                                                        {s.name} <span className="opacity-50">({s.cost})</span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </>
-                )}
+                ) : ( <>
+                    <div className="text-xs uppercase font-bold text-emerald-700 tracking-wider mb-2 text-center border-b border-emerald-900/30 pb-1">Quick Cast</div>
+                    <div className="overflow-y-auto custom-scrollbar flex-1">
+                        {sharedInventory.some(i => i.type === 'consumable') && (<div className="mb-3">
+                            <div className="text-[11px] text-emerald-600 font-bold mb-1 pl-1">CONSUMABLES</div>
+                            <div className="grid grid-cols-2 gap-1">{Array.from(new Set(sharedInventory.filter(i => i.type === 'consumable').map(i => i.id))).map(id => { const item = sharedInventory.find(i => i.id === id)!; const count = sharedInventory.filter(i => i.id === id).length; return ( <button key={id} onClick={() => handleQuickAction({type: 'item', item})} className="text-[11px] border border-emerald-900/50 bg-emerald-950/20 hover:bg-emerald-900/40 p-1 flex justify-between items-center text-left"> <span className="truncate flex-1 text-emerald-400">{item.name}</span> <span className="text-white font-bold ml-1">x{count}</span> </button> )})} </div>
+                        </div>)}
+                        <div className="text-[11px] text-cyan-600 font-bold mb-1 pl-1">SUPPORT SPELLS</div>
+                        <div className="grid grid-cols-1 gap-1"> {party.map((p, pIdx) => { const usable = getUsableSkills(p); if (usable.length === 0) return null; return ( <div key={p.id} className="flex gap-1 items-center bg-black/20 p-1 border border-cyan-900/20"> <div className="w-4 h-4 bg-cyan-900 text-[10px] flex items-center justify-center text-white font-bold">{p.class.substring(0,1)}</div> <div className="flex-1 flex flex-wrap gap-1"> {usable.map(s => ( <button key={s.id} disabled={p.mp < s.cost} onClick={() => handleQuickAction({type: 'skill', skill: s, sourceIndex: pIdx})} className={`text-[11px] px-1.5 py-0.5 border ${p.mp >= s.cost ? 'border-cyan-700 text-cyan-300 hover:bg-cyan-900/40' : 'border-gray-800 text-gray-600 cursor-not-allowed'}`}> {s.name} <span className="opacity-50">({s.cost})</span> </button> ))} </div> </div> ); })} </div>
+                    </div>
+                </>)}
             </div>
-
-            <div className="flex-1 p-2 flex flex-col gap-2 overflow-hidden bg-black/40 md:hidden min-h-[80px]">
-                {renderLogs(logEndRefMobile)}
-            </div>
+            <div className="flex-1 p-2 flex flex-col gap-2 overflow-hidden bg-black/40 md:hidden min-h-[80px]"> {renderLogs(logEndRefMobile)} </div>
           </div>
         </div>
       )}
       
-      {gameState === 'SKILLS' && (
-        <div className="absolute inset-0 z-50 md:flex md:items-center md:justify-center md:bg-black/80 md:backdrop-blur-sm">
-            <div className="w-full h-full md:max-w-3xl md:h-[80vh] md:relative">
-                <SkillScreen 
-                party={party}
-                selectedCharIndex={selectedInventoryChar}
-                onSelectChar={setSelectedInventoryChar}
-                onUpgradeSkill={handleUpgradeSkill}
-                onClose={() => setGameState('EXPLORE')}
-                calculateStats={calculateDerivedStats}
-                />
-            </div>
-        </div>
-      )}
-      {gameState === 'INVENTORY' && (
-        <div className="absolute inset-0 z-50 md:flex md:items-center md:justify-center md:bg-black/80 md:backdrop-blur-sm">
-            <div className="w-full h-full md:max-w-6xl md:h-[90vh] md:relative">
-                <InventoryScreen 
-                party={party}
-                selectedCharIndex={selectedInventoryChar}
-                onSelectChar={setSelectedInventoryChar}
-                sharedInventory={sharedInventory}
-                materialsPouch={materialsPouch}
-                gold={gold}
-                onClose={() => setGameState('EXPLORE')}
-                onEquip={handleEquip}
-                onUnequip={handleUnequip}
-                onUse={handleUseItem}
-                onDrop={(idx) => setSharedInventory(prev => prev.filter((_, i) => i !== idx))}
-                onDropMaterial={(idx) => setMaterialsPouch(prev => prev.filter((_, i) => i !== idx))}
-                calculateStats={calculateDerivedStats}
-                />
-            </div>
-        </div>
-      )}
-      {gameState === 'MERCHANT' && (
-        <div className="absolute inset-0 z-50 md:flex md:items-center md:justify-center md:bg-black/80 md:backdrop-blur-sm">
-             <div className="w-full h-full md:max-w-5xl md:h-[85vh] md:relative">
-                <MerchantScreen 
-                merchantInventory={merchantInventory}
-                playerInventory={sharedInventory}
-                gold={gold}
-                merchantSprite={MERCHANT_AVATAR}
-                onBuy={handleBuy}
-                onSell={handleSell}
-                onClose={() => setGameState('EXPLORE')}
-                party={party}
-                calculateStats={calculateDerivedStats}
-                />
-            </div>
-        </div>
-      )}
-      {gameState === 'COMBAT' && (
-        <div className="absolute inset-0 z-40 w-full h-full">
-            <BattleScreen 
-            party={party} 
-            enemies={activeEnemies}
-            inventory={sharedInventory}
-            activeCharIndex={activeCharIndex}
-            targetIndex={targetIndex}
-            setTargetIndex={setTargetIndex}
-            allyTargetIndex={allyTargetIndex}
-            setAllyTargetIndex={setAllyTargetIndex}
-            atbValues={atbValues}
-            actingId={actingId}
-            impactIds={impactIds}
-            currentAnim={currentAnim}
-            floatingTexts={floatingTexts}
-            onAttack={handleAttack} 
-            onUseItem={handleCombatUseItem}
-            onSkill={handleSkill}
-            onRun={() => { stopAtbClock(); setGameState('EXPLORE'); addLog(`🏃 Party retreated safely.`, 'info'); }}
-            calculateStats={calculateDerivedStats}
-            logs={logs}
-            />
-        </div>
-      )}
-      {gameState === 'DEATH' && (
-        <div className="flex-1 flex flex-col items-center justify-center p-8 bg-red-950/20 text-center animate-pulse">
-          <h2 className="text-red-600 text-6xl font-black mb-8">PARTY WIPED</h2>
-          <button onClick={() => setGameState('TITLE')} className="retro-button px-8 py-4 text-red-600 border-red-600 hover:bg-red-600 hover:text-white">GRAVEYARD</button>
-        </div>
-      )}
+      {gameState === 'SKILLS' && (<div className="absolute inset-0 z-50 md:flex md:items-center md:justify-center md:bg-black/80 md:backdrop-blur-sm"> <div className="w-full h-full md:max-w-3xl md:h-[80vh] md:relative"> <SkillScreen party={party} selectedCharIndex={selectedInventoryChar} onSelectChar={setSelectedInventoryChar} onUpgradeSkill={handleUpgradeSkill} onClose={() => setGameState('EXPLORE')} calculateStats={calculateDerivedStats} /> </div> </div>)}
+      {gameState === 'INVENTORY' && (<div className="absolute inset-0 z-50 md:flex md:items-center md:justify-center md:bg-black/80 md:backdrop-blur-sm"> <div className="w-full h-full md:max-w-6xl md:h-[90vh] md:relative"> <InventoryScreen party={party} selectedCharIndex={selectedInventoryChar} onSelectChar={setSelectedInventoryChar} sharedInventory={sharedInventory} materialsPouch={materialsPouch} gold={gold} onClose={() => setGameState('EXPLORE')} onEquip={handleEquip} onUnequip={handleUnequip} onUse={handleUseItem} onDrop={(idx) => setSharedInventory(prev => prev.filter((_, i) => i !== idx))} onDropMaterial={(idx) => setMaterialsPouch(prev => prev.filter((_, i) => i !== idx))} calculateStats={calculateDerivedStats} /> </div> </div>)}
+      {gameState === 'MERCHANT' && (<div className="absolute inset-0 z-50 md:flex md:items-center md:justify-center md:bg-black/80 md:backdrop-blur-sm"> <div className="w-full h-full md:max-w-5xl md:h-[85vh] md:relative"> <MerchantScreen merchantInventory={merchantInventory} playerInventory={sharedInventory} gold={gold} merchantSprite={MERCHANT_AVATAR} onBuy={handleBuy} onSell={handleSell} onClose={() => setGameState('EXPLORE')} party={party} calculateStats={calculateDerivedStats} /> </div> </div>)}
+      {gameState === 'COMBAT' && (<div className="absolute inset-0 z-40 w-full h-full"> <BattleScreen party={party} enemies={activeEnemies} inventory={sharedInventory} activeCharIndex={activeCharIndex} targetIndex={targetIndex} setTargetIndex={setTargetIndex} allyTargetIndex={allyTargetIndex} setAllyTargetIndex={setAllyTargetIndex} atbValues={atbValues} actingId={actingId} impactIds={impactIds} currentAnim={currentAnim} floatingTexts={floatingTexts} onAttack={handleAttack} onUseItem={handleCombatUseItem} onSkill={handleSkill} onRun={() => { stopAtbClock(); setGameState('EXPLORE'); addLog(`🏃 Party retreated safely.`, 'info'); }} calculateStats={calculateDerivedStats} logs={logs} /> </div>)}
+      {gameState === 'DEATH' && (<div className="flex-1 flex flex-col items-center justify-center p-8 bg-red-950/20 text-center animate-pulse"> <h2 className="text-red-600 text-6xl font-black mb-8">PARTY WIPED</h2> <button onClick={() => window.location.reload()} className="retro-button px-8 py-4 text-red-600 border-red-600 hover:bg-red-600 hover:text-white">RESTART</button> </div>)}
     </div>
   );
 };
 
 const App: React.FC = () => {
-    return (
-        <ErrorBoundary>
-            <GameContent />
-        </ErrorBoundary>
-    );
+  return (
+    <ErrorBoundary>
+      <GameContent />
+    </ErrorBoundary>
+  );
 };
 
 export default App;
