@@ -1,10 +1,11 @@
 
-import React, { useState, useEffect, useCallback, useRef, ErrorInfo, ReactNode } from 'react';
+import React, { useState, useEffect, useCallback, useRef, ErrorInfo, ReactNode, useMemo } from 'react';
 import { 
   Direction, Position, Player, Enemy, GameState, LogMessage, Item, DerivedStats, Skill, ItemType, ItemRarity, ItemMod, Buff, CombatResult, ClassDefinition
 } from './types';
-import { ITEMS, MATERIALS, ENEMIES, CLASSES, MOD_POOL, generateDungeon, MERCHANT_AVATAR, AVATAR_TRAVELER, CLASS_APTITUDES } from './constants';
-import DungeonRenderer from './components/DungeonRenderer';
+import { ITEMS, MATERIALS, ENEMIES, CLASSES, MOD_POOL, generateDungeon, MERCHANT_AVATAR, AVATAR_TRAVELER, CLASS_APTITUDES, generateTownMap, TEXTURE_FOUNTAIN, AVATAR_VILLAGER, TEXTURE_WALL_BRICK, TEXTURE_WALL_STONE, TEXTURE_WALL_METAL, TEXTURE_WALL_CITY, TEXTURE_DOOR, INTERIOR_MAPS, DOOR_LOCATIONS, SPRITE_STAIRS_UP, AVATAR_GHOST } from './constants';
+// FIX: Changed to named import for DungeonRenderer.
+import { DungeonRenderer } from './components/DungeonRenderer';
 import BattleScreen, { AnimationType, FloatingText } from './components/BattleScreen';
 import InventoryScreen from './components/InventoryScreen';
 import MerchantScreen from './components/MerchantScreen';
@@ -17,6 +18,7 @@ import FloorTransition from './components/FloorTransition';
 import LoreCutscene from './components/LoreCutscene';
 import MerchantConversation from './components/MerchantConversation';
 import SealingTransition from './components/SealingTransition';
+import DialogueBox from './components/DialogueBox';
 import { sounds } from './soundManager';
 
 interface ErrorBoundaryProps {
@@ -80,12 +82,16 @@ const GameContent: React.FC = () => {
   // Transition States
   const [isBattleTransition, setIsBattleTransition] = useState(false);
   const [isVictoryTransition, setIsVictoryTransition] = useState(false);
-  const [isFloorTransition, setIsFloorTransition] = useState(false);
+  const [floorTransitionState, setFloorTransitionState] = useState<'none' | 'descending' | 'ascending'>('none');
   const [isDescending, setIsDescending] = useState(false);
   const [isSealingTransition, setIsSealingTransition] = useState(false);
+  const [doorPhase, setDoorPhase] = useState<'none' | 'closing' | 'opening'>('none');
 
   // UI States
   const [isMapExpanded, setIsMapExpanded] = useState(false);
+  const [dialogue, setDialogue] = useState<string[] | null>(null);
+  const [dialogueSpeaker, setDialogueSpeaker] = useState<{name: string, avatar: string} | null>(null);
+  const [interactionTarget, setInteractionTarget] = useState<{type: 'door' | 'stairs' | 'chest' | 'merchant' | 'npc' | 'fountain', pos: Position, tileId: number, label: string} | null>(null);
 
   // Inventory State - Initialize with Potions so ITEM button works
   const [sharedInventory, setSharedInventory] = useState<Item[]>([
@@ -102,21 +108,19 @@ const GameContent: React.FC = () => {
   const [showMerchantIntro, setShowMerchantIntro] = useState(false);
   const [hasMetMerchant, setHasMetMerchant] = useState(false);
 
-  // Traveler State
-  const [showTravelerDialog, setShowTravelerDialog] = useState(false);
-
   // Quick Action State (Explore HUD)
   const [quickActionTargeting, setQuickActionTargeting] = useState<{type: 'item'|'skill', sourceIndex?: number, item?: Item, skill?: Skill} | null>(null);
 
-  // Dungeon State
+  // Map State
+  const [townMap, setTownMap] = useState<number[][]>([]);
   const [dungeonFloors, setDungeonFloors] = useState<number[][][]>([]);
-  const [currentFloor, setCurrentFloor] = useState(0);
-  const [currentPos, setCurrentPos] = useState<Position>({ x: 1, y: 1 });
-  const [stairEntryPos, setStairEntryPos] = useState<Position>({x: 1, y: 1});
-  // Start facing SOUTH (2) to see the guaranteed merchant immediately
+  const [stairsDownLocations, setStairsDownLocations] = useState<Record<number, Position>>({});
+  const [currentFloor, setCurrentFloor] = useState(-1); // -1 signifies the Town
+  const [currentPos, setCurrentPos] = useState<Position>({ x: 6, y: 3 }); // Initial Spawn near stairs
   const [currentDir, setCurrentDir] = useState<Direction>(Direction.SOUTH);
   const [explored, setExplored] = useState<Record<number, Set<string>>>({});
   const [stepsSinceBattle, setStepsSinceBattle] = useState(0);
+  const [townExitState, setTownExitState] = useState<{ pos: Position, dir: Direction } | null>(null);
 
   // ATB / Combat State
   const [atbValues, setAtbValues] = useState<Record<string, number>>({});
@@ -131,8 +135,6 @@ const GameContent: React.FC = () => {
   const [allyTargetIndex, setAllyTargetIndex] = useState(0);
 
   const [gold, setGold] = useState(100); 
-  const [skeletonSprite, setSkeletonSprite] = useState<string | null>(null);
-  const [merchantSprite, setMerchantSprite] = useState<string | null>(MERCHANT_AVATAR);
   const [logs, setLogs] = useState<LogMessage[]>([]);
 
   // Refs for logs
@@ -166,15 +168,58 @@ const GameContent: React.FC = () => {
       if (gameState === 'TITLE' || gameState === 'CREATION') {
         sounds.playLoreAmbience();
       } else if (gameState === 'EXPLORE' || gameState === 'COMBAT') {
-        sounds.playMusic(currentFloor);
+        if (currentFloor <= -1) { // Also covers interiors
+            sounds.playLoreAmbience();
+        } else {
+            sounds.playMusic(currentFloor);
+        }
       } else if (gameState === 'DEATH') {
         sounds.stopMusic();
       }
-      // LORE state music is handled by the LoreCutscene component itself
     } catch (e) {
       console.warn("Audio playback failed", e);
     }
   }, [gameState, currentFloor]);
+
+  const currentMap = useMemo(() => {
+    if (currentFloor === -1) return townMap;
+    if (currentFloor < -1) return INTERIOR_MAPS[currentFloor]?.map || [];
+    if (dungeonFloors[currentFloor]) return dungeonFloors[currentFloor];
+    return [];
+  }, [currentFloor, townMap, dungeonFloors]);
+
+  // Interaction Check Logic
+  useEffect(() => {
+      if (gameState !== 'EXPLORE') {
+          setInteractionTarget(null);
+          return;
+      }
+
+      const vecs = [{ x: 0, y: -1 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }];
+      const vec = vecs[currentDir];
+      const targetX = currentPos.x + vec.x;
+      const targetY = currentPos.y + vec.y;
+
+      if (!currentMap || targetY < 0 || targetY >= currentMap.length || targetX < 0 || targetX >= currentMap[0].length) {
+          setInteractionTarget(null);
+          return;
+      }
+
+      const tile = currentMap[targetY][targetX];
+      
+      let target: {type: 'door' | 'stairs' | 'chest' | 'merchant' | 'npc' | 'fountain', pos: Position, tileId: number, label: string} | null = null;
+
+      if (tile === 10) target = { type: 'door', pos: {x: targetX, y: targetY}, tileId: 10, label: 'Open Door' };
+      else if (tile === 3) target = { type: 'stairs', pos: {x: targetX, y: targetY}, tileId: 3, label: 'Descend Stairs' };
+      else if (tile === 11) target = { type: 'stairs', pos: {x: targetX, y: targetY}, tileId: 11, label: 'Ascend Stairs' };
+      else if (tile === 4) target = { type: 'chest', pos: {x: targetX, y: targetY}, tileId: 4, label: 'Open Chest' };
+      else if (tile === 5) target = { type: 'merchant', pos: {x: targetX, y: targetY}, tileId: 5, label: 'Talk to Merchant' };
+      else if (tile === 2 || tile === 6 || tile === 8 || tile === 12) target = { type: 'npc', pos: {x: targetX, y: targetY}, tileId: tile, label: 'Talk' };
+      else if (tile === 7) target = { type: 'fountain', pos: {x: targetX, y: targetY}, tileId: 7, label: 'Drink from Fountain' };
+
+      setInteractionTarget(target);
+
+  }, [currentPos, currentDir, currentMap, gameState]);
 
   const generateRandomItem = (base: Item, levelFactor: number = 1): Item => {
     if (base.type === 'consumable' || base.type === 'material') return { ...base, rarity: 'NORMAL', mods: [] };
@@ -300,11 +345,6 @@ const GameContent: React.FC = () => {
     const baseMaxMp = ent.maxMp ?? ent.mp;
     const maxHp = baseMaxHp + modValues.hp + passiveBonuses.hp + (buffValues.maxHp || 0);
     const maxMp = baseMaxMp + modValues.mp + passiveBonuses.mp;
-
-    // We return effectiveDex, but for turn order calculation logic (which uses 'dex' from entity or derived?), 
-    // the UI consumes effectiveDex. The ATB logic inside GameContent uses p.dex.
-    // NOTE: GameContent ATB uses base p.dex currently. Ideally it should use derived stats.
-    // For now, we return effectiveSpeedDex as effectiveDex to reflect the penalty in UI and future logic if updated.
     
     return { 
         effectiveStr, effectiveInt, effectiveDex: effectiveSpeedDex, effectiveVit, effectiveCha,
@@ -330,19 +370,6 @@ const GameContent: React.FC = () => {
     if (gameState === 'EXPLORE') updateExploration(currentPos, currentFloor);
   }, [currentPos, currentFloor, gameState, updateExploration]);
 
-  // Sprite fetching logic 
-  useEffect(() => {
-    const fetchSprites = async () => {
-      try {
-          const skelCached = localStorage.getItem('skeleton_sprite_v4');
-          if (skelCached) setSkeletonSprite(skelCached);
-      } catch (e) {
-          console.warn("Local storage access failed", e);
-      }
-    };
-    fetchSprites();
-  }, []);
-
   const addLog = (text: string, type: LogMessage['type'] = 'info') => {
     setLogs(prev => [...prev.slice(-49), { text, type }]);
   };
@@ -364,17 +391,7 @@ const GameContent: React.FC = () => {
         
         partyRef.current.forEach(p => {
           if (p.hp > 0 && !triggeredId) {
-            // Use derived stats for ATB calculation to respect aptitude speed penalties
-            // Note: calculateDerivedStats is defined in render scope, we need to replicate basic logic or assume base dex for simplicity
-            // To properly fix, we should pre-calc derived stats. For this iteration, we use base DEX + simple modifier approximation.
-            // However, since App component re-renders often, we can't easily access calculateDerivedStats inside this callback closure efficiently without refs.
-            // Let's stick to base stats for now but add a note. 
-            // actually, let's fix it properly. The speed penalty modifies 'effectiveDex'.
-            // Since we can't call calculateDerivedStats here easily without huge refactor, we will rely on base dex for now, 
-            // BUT since this is a requirement, let's apply a quick check.
-            
             let speed = p.dex;
-            // Rough penalty application for ATB tick
             const heavyCount = [p.weapon, p.helm, p.chest, p.gloves, p.boots].filter(i => i?.weight === 'HEAVY').length;
             if (p.class === 'ARCHER' && heavyCount > 0) speed -= (5 * heavyCount);
             
@@ -1129,18 +1146,28 @@ const GameContent: React.FC = () => {
   };
 
   const move = useCallback((dirMod: number) => {
-    if (gameState !== 'EXPLORE' || isBattleTransition || isVictoryTransition || showMerchantIntro || showMerchantPrompt || showTravelerDialog || isMapExpanded) return;
+    if (gameState !== 'EXPLORE' || isBattleTransition || isVictoryTransition || showMerchantIntro || showMerchantPrompt || dialogue || isMapExpanded || doorPhase !== 'none' || floorTransitionState !== 'none') return;
+    
     const vecs = [{ x: 0, y: -1 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }];
     const vec = vecs[currentDir];
     const nx = currentPos.x + vec.x * -dirMod;
     const ny = currentPos.y + vec.y * -dirMod;
-    if (!dungeonFloors[currentFloor]) return;
-    const currentMap = dungeonFloors[currentFloor];
+
+    if (!currentMap || ny < 0 || ny >= currentMap.length || nx < 0 || nx >= currentMap[0].length) return;
     
-    if (ny < 0 || ny >= currentMap.length || nx < 0 || nx >= currentMap[0].length || currentMap[ny][nx] === 1) return;
-    
+    const tile = currentMap[ny][nx];
+
+    if (tile === 1) return; // Wall
+
+    // If moving forward into an interactive object, prevent movement unless specific conditions met (like secret wall)
+    // Secret Wall (9) is permeable. All others (Chest, NPC, Door, Stairs, Fountain) are blocked and require interaction.
+    if (dirMod === -1 && [2, 3, 4, 5, 6, 7, 8, 10, 11, 12].includes(tile)) {
+        // Block movement, interaction handled via button
+        return; 
+    }
+
     // Handle Secret Wall Entry
-    if (currentMap[ny][nx] === 9) {
+    if (tile === 9) {
         const isAlreadyExplored = explored[currentFloor]?.has(`${nx},${ny}`);
         if (!isAlreadyExplored) {
             sounds.playEffect('secret');
@@ -1154,54 +1181,123 @@ const GameContent: React.FC = () => {
 
     setStepsSinceBattle(prev => prev + 1);
     setCurrentPos({ x: nx, y: ny });
-    checkSquare(nx, ny);
-  }, [gameState, currentDir, currentFloor, currentPos, dungeonFloors, explored, isBattleTransition, isVictoryTransition, showMerchantIntro, showMerchantPrompt, showTravelerDialog, isMapExpanded, stepsSinceBattle]);
+    
+    // Check for random encounters when moving into empty tiles or secret walls
+    if (dirMod === -1 && (tile === 0 || tile === 9) && currentFloor >= 0) {
+        if (Math.random() < 0.18 && stepsSinceBattle > 10) {
+            spawnEnemies();
+        }
+    }
+
+  }, [gameState, currentDir, currentFloor, currentPos, currentMap, explored, isBattleTransition, isVictoryTransition, showMerchantIntro, showMerchantPrompt, dialogue, isMapExpanded, stepsSinceBattle, doorPhase, townExitState, floorTransitionState]);
 
   const turn = useCallback((rot: number) => {
-    if (gameState !== 'EXPLORE' || isBattleTransition || isVictoryTransition || showMerchantIntro || showMerchantPrompt || showTravelerDialog || isMapExpanded) return;
+    if (gameState !== 'EXPLORE' || isBattleTransition || isVictoryTransition || showMerchantIntro || showMerchantPrompt || dialogue || isMapExpanded || doorPhase !== 'none' || floorTransitionState !== 'none') return;
     sounds.playEffect('turn');
     setCurrentDir((currentDir + rot + 4) % 4);
-  }, [gameState, currentDir, isBattleTransition, isVictoryTransition, showMerchantIntro, showMerchantPrompt, showTravelerDialog, isMapExpanded]);
+  }, [gameState, currentDir, isBattleTransition, isVictoryTransition, showMerchantIntro, showMerchantPrompt, dialogue, isMapExpanded, doorPhase, floorTransitionState]);
 
-  const checkSquare = (x: number, y: number) => {
-    if (!dungeonFloors[currentFloor]) return;
-    const currentMap = dungeonFloors[currentFloor];
-    const tile = currentMap[y][x];
-    if (tile === 4) {
-      sounds.playEffect('loot');
-      const baseItem = ITEMS[Math.floor(Math.random() * ITEMS.length)];
-      const rolledItem = generateRandomItem(baseItem, 1 + currentFloor * 0.2);
-      setSharedInventory(prev => [...prev, rolledItem]);
-      const goldRoll = 25 + Math.floor(Math.random() * 25);
-      setGold(g => g + goldRoll);
-      addLog(`💰 Found ${rolledItem.name} and ${goldRoll} gold coins!`, 'loot');
-      const newFloors = [...dungeonFloors];
-      const newMap = [...newFloors[currentFloor]];
-      const newRow = [...newMap[y]];
-      newRow[x] = 0;
-      newMap[y] = newRow;
-      newFloors[currentFloor] = newMap;
-      setDungeonFloors(newFloors);
-    } else if (tile === 3) {
-      sounds.playEffect('stairs');
-      if (currentFloor + 1 >= dungeonFloors.length) {
-          addLog(`🏆 You have conquered the final floor! Returning to surface...`, 'combat');
-          setTimeout(() => setGameState('TITLE'), 3000);
-      } else { 
-          setStairEntryPos(currentPos);
-          setIsFloorTransition(true);
+  // Handle manual interaction from UI
+  const handleInteraction = () => {
+      if (!interactionTarget) return;
+      const { type, pos, tileId } = interactionTarget;
+      const { x, y } = pos;
+
+      if (type === 'door') {
+          // Door Logic
+          sounds.playEffect('door_open');
+          setDoorPhase('closing');
+          setTimeout(() => {
+              if (currentFloor < -1) { // Exiting a house
+                  if (townExitState) {
+                      setCurrentFloor(-1); // Back to town
+                      setCurrentPos(townExitState.pos);
+                      setCurrentDir(townExitState.dir);
+                      setTownExitState(null);
+                  }
+              } else { // Entering a house
+                  setTownExitState({ pos: currentPos, dir: (currentDir + 2) % 4 });
+                  const doorKey = `${x},${y}`;
+                  const houseId = DOOR_LOCATIONS[doorKey];
+                  if (houseId && INTERIOR_MAPS[houseId]) {
+                      setCurrentFloor(houseId);
+                      setCurrentPos(INTERIOR_MAPS[houseId].entryPos);
+                      setCurrentDir(Direction.NORTH); 
+                  }
+              }
+              setDoorPhase('opening');
+          }, 400); 
+          setTimeout(() => setDoorPhase('none'), 800);
+      } else if (type === 'stairs') {
+          // Stairs Logic
+          sounds.playEffect('stairs');
+          if (tileId === 3) { // Down
+              if (currentFloor === -1) { // Town -> Dungeon
+                  setFloorTransitionState('descending');
+              } else if (currentFloor + 1 >= dungeonFloors.length) {
+                  addLog(`🏆 You have conquered the final floor! Returning to surface...`, 'combat');
+                  setTimeout(() => setGameState('TITLE'), 3000);
+              } else {
+                  setFloorTransitionState('descending');
+              }
+          } else if (tileId === 11) { // Up
+              setFloorTransitionState('ascending');
+          }
+      } else if (type === 'chest') {
+          // Chest Logic
+          sounds.playEffect('loot');
+          const roll = Math.random();
+          let levelFactor;
+          const floorLevel = currentFloor + 1;
+          if (roll < 0.5) levelFactor = floorLevel;
+          else if (roll < 0.75) levelFactor = Math.max(1, floorLevel - Math.floor(Math.random() * 5 + 1));
+          else levelFactor = floorLevel + Math.floor(Math.random() * 5 + 1);
+
+          const baseItem = ITEMS[Math.floor(Math.random() * ITEMS.length)];
+          const rolledItem = generateRandomItem(baseItem, levelFactor);
+          setSharedInventory(prev => [...prev, rolledItem]);
+          
+          const goldRoll = 25 + Math.floor(Math.random() * 25);
+          setGold(g => g + goldRoll);
+          addLog(`💰 Found ${rolledItem.name} and ${goldRoll} gold coins!`, 'loot');
+          
+          const newFloors = [...dungeonFloors];
+          newFloors[currentFloor][y][x] = 0; // Remove chest
+          setDungeonFloors(newFloors);
+          setInteractionTarget(null); // Clear prompt
+      } else if (type === 'merchant') {
+          if (currentFloor === -1 && !hasMetMerchant) setShowMerchantIntro(true);
+          else setShowMerchantPrompt(true);
+      } else if (type === 'npc') {
+          if (currentFloor === -1) return; // No generic NPCs in town map currently except merchants
+          if (currentFloor < -1) {
+              if (tileId === 6) {
+                  setDialogueSpeaker({ name: "Lost Traveler", avatar: AVATAR_TRAVELER });
+                  setDialogue(["Have you seen a hooded man?", "He is not what he seems... Be wary."]);
+              } else if (tileId === 8) {
+                  setDialogueSpeaker({ name: "Old Man", avatar: AVATAR_VILLAGER });
+                  setDialogue(["The Eye... it feeds on memory.", "Don't let it take yours."]);
+              }
+          } else if (tileId === 12) { // Ghost
+              setDialogueSpeaker({ name: "Echo of the Abyss", avatar: AVATAR_GHOST });
+              setDialogue(["This place is not real... it is a memory.", "The Eye is a lens, focused on a forgotten time.", "To leave is not to walk, but to remember who you were."]);
+              const newFloors = [...dungeonFloors];
+              newFloors[currentFloor][y][x] = 0; // Vanish
+              setDungeonFloors(newFloors);
+              setInteractionTarget(null);
+          }
+      } else if (type === 'fountain') {
+          sounds.playEffect('heal');
+          addLog("💧 You drink from the fountain and feel refreshed.", 'heal');
+          setParty(p => p.map(char => {
+              const stats = calculateDerivedStats(char);
+              return {
+                  ...char,
+                  hp: Math.min(stats.maxHp, char.hp + 20),
+                  mp: Math.min(stats.maxMp, char.mp + 10)
+              };
+          }));
       }
-    } else if (tile === 5) {
-      if (currentFloor === 0 && !hasMetMerchant) {
-        setShowMerchantIntro(true);
-      } else {
-        setShowMerchantPrompt(true);
-      }
-    } else if (tile === 6) {
-        setShowTravelerDialog(true);
-    } else if (Math.random() < 0.18 && stepsSinceBattle > 10) {
-        spawnEnemies();
-    }
   };
 
   const generateMerchantStock = () => {
@@ -1245,6 +1341,12 @@ const GameContent: React.FC = () => {
             case 'ArrowRight':
                 turn(1); // Right
                 break;
+            case 'e':
+            case 'E':
+            case 'Enter':
+            case ' ':
+                handleInteraction();
+                break;
             case 'm':
             case 'M':
                 setIsMapExpanded(prev => !prev);
@@ -1254,10 +1356,10 @@ const GameContent: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gameState, move, turn]);
+  }, [gameState, move, turn, handleInteraction]); // Added handleInteraction to deps
 
   const renderLogs = (ref?: React.RefObject<HTMLDivElement>) => (
-    <div className="flex-1 overflow-y-auto custom-scrollbar p-2 flex flex-col gap-1 text-xs md:text-sm font-mono bg-black/60 h-full">
+    <div className="flex-1 overflow-y-auto custom-scrollbar p-2 flex flex-col gap-1 text-sm md:text-base font-mono bg-black/60 h-full">
         {logs.map((msg, i) => {
             let color = 'text-emerald-500';
             if (msg.type === 'damage') color = 'text-red-400';
@@ -1269,7 +1371,7 @@ const GameContent: React.FC = () => {
             if (msg.type === 'combat') color = 'text-red-600 font-bold';
             return (
                 <div key={i} className={`${color} leading-tight break-words border-l-2 border-transparent pl-1 hover:border-emerald-500/30`}>
-                    <span className="opacity-30 mr-2 text-[10px]">[{new Date().toLocaleTimeString().split(' ')[0]}]</span>
+                    <span className="opacity-30 mr-2 text-xs">[{new Date().toLocaleTimeString().split(' ')[0]}]</span>
                     {msg.text}
                 </div>
             );
@@ -1293,18 +1395,42 @@ const GameContent: React.FC = () => {
         }
       `}} />
 
+      {doorPhase !== 'none' && (
+        <div className={`absolute inset-0 bg-black z-[1000] transition-opacity duration-300 pointer-events-none ${doorPhase === 'closing' ? 'opacity-100' : 'opacity-0'}`} />
+      )}
+
       {isSealingTransition && <SealingTransition onComplete={() => {
         setIsSealingTransition(false);
         setGameState('LORE');
       }} />}
 
+      {dialogue && dialogueSpeaker && (
+        <DialogueBox 
+            speaker={dialogueSpeaker}
+            lines={dialogue}
+            onClose={() => { setDialogue(null); setDialogueSpeaker(null); }}
+        />
+      )}
+
+      {/* Interaction Prompt Overlay */}
+      {interactionTarget && !dialogue && !isMapExpanded && !showMerchantPrompt && !isBattleTransition && !isVictoryTransition && doorPhase === 'none' && floorTransitionState === 'none' && (
+          <div className="absolute top-[20%] left-1/2 -translate-x-1/2 z-50 animate-in fade-in zoom-in duration-200 pointer-events-auto cursor-pointer" onClick={handleInteraction}>
+              <div className="bg-black/80 border-2 border-emerald-400 p-3 shadow-[0_0_20px_rgba(16,185,129,0.4)] flex flex-col items-center">
+                  <div className="text-emerald-300 font-bold uppercase tracking-widest text-sm mb-1">{interactionTarget.label}</div>
+                  <div className="text-[10px] text-emerald-600 bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-900/50 font-black tracking-[0.2em] animate-pulse">
+                      [E] INTERACT
+                  </div>
+              </div>
+          </div>
+      )}
+
       {isMapExpanded && (
         <div className="absolute inset-0 z-[100] bg-black/95 flex flex-col p-4 animate-in zoom-in duration-200">
             <div className="flex justify-between items-center mb-4 border-b border-emerald-800 pb-2">
-                <span className="text-emerald-400 font-black uppercase tracking-widest text-lg">Tactical Map</span>
+                <span className="text-emerald-400 font-black uppercase tracking-widest text-xl">Tactical Map</span>
                 <button 
                     onClick={() => setIsMapExpanded(false)}
-                    className="retro-button px-4 py-2 text-xs border-red-500 text-red-500 hover:bg-red-900"
+                    className="retro-button px-4 py-2 text-sm border-red-500 text-red-500 hover:bg-red-900"
                 >
                     CLOSE [M]
                 </button>
@@ -1315,54 +1441,18 @@ const GameContent: React.FC = () => {
                     dir={currentDir} 
                     floor={currentFloor} 
                     explored={explored[currentFloor] || new Set()} 
-                    mapData={dungeonFloors[currentFloor]}
+                    mapData={currentMap}
                     expanded={true}
                 />
             </div>
-            <div className="mt-2 text-center text-xs text-emerald-800 font-bold uppercase">
-                Floor B{currentFloor + 1} • {explored[currentFloor]?.size || 0} Sectors Charted
+            <div className="mt-2 text-center text-sm text-emerald-800 font-bold uppercase">
+                {currentFloor === -1 ? 'SAFE HAVEN' : `Floor B${currentFloor + 1}`} • {explored[currentFloor]?.size || 0} Sectors Charted
             </div>
         </div>
       )}
 
       {isVictoryTransition && <VictoryTransition />}
-
-      {showTravelerDialog && (
-        <div className="absolute inset-0 z-[150] bg-black/95 flex items-center justify-center p-4">
-            <div className="w-full max-w-lg bg-[#1a1005] border-2 border-amber-900 p-6 flex flex-col gap-6 relative shadow-[0_0_50px_rgba(255,160,50,0.1)]">
-                <div className="flex gap-4 items-start border-b border-amber-900/50 pb-4">
-                    <div className="w-24 h-24 border-2 border-amber-800 bg-amber-950/30 shrink-0">
-                        <img src={AVATAR_TRAVELER} className="w-full h-full object-contain pixelated" alt="Traveler" />
-                    </div>
-                    <div>
-                        <h3 className="text-xl font-black text-amber-500 uppercase tracking-widest mb-1">
-                            {currentFloor === 0 ? "?????" : "Unshackled Soul"}
-                        </h3>
-                        <p className="text-xs text-amber-700 font-bold uppercase">The Lost Traveler</p>
-                    </div>
-                </div>
-                <div className="text-sm md:text-base text-amber-200/90 leading-relaxed font-serif italic">
-                    <p className="mb-4">"Many thanks… truly, many thanks! At last, I am freed — I walk once more in the shadows of liberty."</p>
-                    <p className="mb-4">"The Hooded Man… hast thou seen him? Trust him not. He cast me into this pit of illusion and despair!"</p>
-                    <p className="mb-4">"Yet now I am free, and I shall repay thee when the time is ripe… Seek me at my dwelling; it lies along the path of thy Destiny."</p>
-                    <p>"How do I know? Prithee, what other reason would draw thee hither?"</p>
-                </div>
-                <button 
-                    onClick={() => {
-                        setShowTravelerDialog(false);
-                        const newFloors = [...dungeonFloors];
-                        newFloors[currentFloor][currentPos.y][currentPos.x] = 0;
-                        setDungeonFloors(newFloors);
-                        addLog("The Traveler vanishes into the dark...", 'info');
-                    }} 
-                    className="w-full py-3 border border-amber-700 text-amber-500 font-black hover:bg-amber-900/20 uppercase tracking-widest"
-                >
-                    Farewell
-                </button>
-            </div>
-        </div>
-      )}
-
+      
       {isBattleTransition && (
         <BattleTransition onComplete={() => {
             setIsBattleTransition(false);
@@ -1371,20 +1461,39 @@ const GameContent: React.FC = () => {
         }} />
       )}
 
-      {isFloorTransition && (
+      {floorTransitionState !== 'none' && (
         <FloorTransition 
+            direction={floorTransitionState}
             floor={currentFloor}
             onMidpoint={() => {
-                setCurrentFloor(f => f + 1); 
-                setCurrentPos(stairEntryPos);
+                if (floorTransitionState === 'descending') {
+                    if (currentFloor === -1) { // Town to Dungeon
+                        setCurrentFloor(0);
+                        setCurrentPos({ x: 1, y: 1 });
+                    } else { // Deeper in Dungeon
+                        setCurrentFloor(f => f + 1);
+                        setCurrentPos(currentPos); // Appear where stairs down were
+                    }
+                } else { // Ascending
+                    if (currentFloor === 0) { // Dungeon to Town
+                        setCurrentFloor(-1);
+                        setCurrentPos({ x: 6, y: 1 }); // Appear in front of dungeon entrance
+                    } else { // Up a floor in dungeon
+                        const prevFloorStairsPos = stairsDownLocations[currentFloor - 1];
+                        setCurrentFloor(f => f - 1);
+                        if (prevFloorStairsPos) {
+                            setCurrentPos(prevFloorStairsPos); // Appear where stairs down were on the upper floor
+                        }
+                    }
+                }
             }}
-            onComplete={() => setIsFloorTransition(false)}
+            onComplete={() => setFloorTransitionState('none')}
         />
       )}
 
       {showMerchantIntro && (
         <MerchantConversation 
-          merchantSprite={merchantSprite}
+          merchantSprite={MERCHANT_AVATAR}
           onComplete={() => {
             setShowMerchantIntro(false);
             setHasMetMerchant(true);
@@ -1402,24 +1511,24 @@ const GameContent: React.FC = () => {
                 <div className="absolute -bottom-2 -right-2 w-4 h-4 border-b-4 border-r-4 border-emerald-400" />
 
                 <div className="text-center flex flex-col items-center">
-                    {merchantSprite ? (
+                    {MERCHANT_AVATAR ? (
                       <div className="w-32 h-32 mb-6 border-2 border-emerald-900 bg-emerald-950/20 p-4 shadow-[0_0_30px_rgba(51,255,51,0.3)] relative group">
-                        <img src={merchantSprite} className="w-full h-full object-contain pixelated relative z-10 brightness-125" alt="Merchant" />
+                        <img src={MERCHANT_AVATAR} className="w-full h-full object-contain pixelated relative z-10 brightness-125" alt="Merchant" />
                         <div className="absolute inset-0 bg-emerald-500/10 animate-pulse" />
                         <div className="absolute inset-0 bg-emerald-500/20 animate-prompt-glitch pointer-events-none" />
                       </div>
                     ) : (
                       <div className="text-4xl mb-2">💎</div>
                     )}
-                    <h3 className="text-2xl font-black text-emerald-400 tracking-[0.4em] uppercase mb-4 text-shadow-glow">INCOMING SIGNAL</h3>
-                    <div className="text-xs md:text-sm text-emerald-600 leading-relaxed font-bold bg-emerald-950/20 p-4 border border-emerald-900">
+                    <h3 className="text-3xl font-black text-emerald-400 tracking-[0.4em] uppercase mb-4 text-shadow-glow">INCOMING SIGNAL</h3>
+                    <div className="text-sm md:text-base text-emerald-600 leading-relaxed font-bold bg-emerald-950/20 p-4 border border-emerald-900">
                         <span className="text-emerald-300">"TRANSFER REQUEST DETECTED...</span> 
                         <br/>Greetings, data-travelers. I have salvaged treasures for your credits. Do you accept the connection?"
                     </div>
                 </div>
                 <div className="flex gap-6 w-full">
-                    <button onClick={() => { setShowMerchantPrompt(false); generateMerchantStock(); setGameState('MERCHANT'); }} className="flex-1 retro-button py-4 text-sm md:text-base border-emerald-400 hover:scale-105 transition-transform">ACCEPT_LINK</button>
-                    <button onClick={() => setShowMerchantPrompt(false)} className="flex-1 retro-button py-4 text-sm md:text-base border-red-900 text-red-500 hover:bg-red-900/40">ABORT</button>
+                    <button onClick={() => { setShowMerchantPrompt(false); generateMerchantStock(); setGameState('MERCHANT'); }} className="flex-1 retro-button py-4 text-base md:text-lg border-emerald-400 hover:scale-105 transition-transform">ACCEPT_LINK</button>
+                    <button onClick={() => setShowMerchantPrompt(false)} className="flex-1 retro-button py-4 text-base md:text-lg border-red-900 text-red-500 hover:bg-red-900/40">ABORT</button>
                 </div>
             </div>
         </div>
@@ -1441,11 +1550,11 @@ const GameContent: React.FC = () => {
             <div className={`absolute inset-0 bg-black transition-opacity duration-[2000ms] pointer-events-none z-[60] ${isDescending ? 'opacity-100' : 'opacity-0'}`} />
             <div className={`z-[70] flex flex-col items-center space-y-10 max-w-4xl w-full relative transition-all duration-1000 ${isDescending ? 'scale-150 opacity-0' : 'scale-100 opacity-100'}`}>
                 <div className="flex flex-col items-center space-y-2 relative group cursor-default text-center">
-                    <div className="text-[#882222] font-serif tracking-[1.5em] text-[10px] md:text-sm uppercase animate-pulse mb-2 font-bold">
+                    <div className="text-[#882222] font-serif tracking-[1.5em] text-xs md:text-base uppercase animate-pulse mb-2 font-bold">
                         &mdash; FORSAKEN DEPTHS &mdash;
                     </div>
                     <div className="relative">
-                        <div className="text-[12px] md:text-lg font-serif text-[#aa3333] tracking-[0.8em] mb-2 italic opacity-90 uppercase">Dungeon of the</div>
+                        <div className="text-sm md:text-xl font-serif text-[#aa3333] tracking-[0.8em] mb-2 italic opacity-90 uppercase">Dungeon of the</div>
                         <h1 className="text-6xl md:text-9xl font-black text-transparent bg-clip-text bg-gradient-to-b from-[#ff4444] via-[#cc0000] to-[#220000] tracking-tighter drop-shadow-[0_10px_30px_rgba(200,0,0,0.7)] relative z-10 font-serif leading-none filter drop-shadow(0 0 10px #ff000033)"
                             style={{ textShadow: '4px 4px 0px #000, -2px -2px 0px #000, 0 0 50px rgba(136,0,0,0.8)' }}>
                             CRIMSON EYE
@@ -1474,12 +1583,12 @@ const GameContent: React.FC = () => {
                     </button>
                     <div className="grid grid-cols-2 gap-4">
                         <button disabled className="group px-4 py-4 bg-[#050000] border border-[#331111] opacity-40 cursor-not-allowed flex items-center justify-center">
-                            <span className="text-[10px] md:text-xs font-bold tracking-widest text-[#662222] uppercase">
+                            <span className="text-xs md:text-sm font-bold tracking-widest text-[#662222] uppercase">
                                 HISTORY
                             </span>
                         </button>
                         <button disabled className="group px-4 py-4 bg-[#050000] border border-[#331111] opacity-40 cursor-not-allowed flex items-center justify-center">
-                            <span className="text-[10px] md:text-xs font-bold tracking-widest text-[#662222] uppercase">
+                            <span className="text-xs md:text-sm font-bold tracking-widest text-[#662222] uppercase">
                                 SCROLLS
                             </span>
                         </button>
@@ -1503,21 +1612,6 @@ const GameContent: React.FC = () => {
                     </div>
                 </div>
             </div>
-            {gameState === 'TITLE' && !isDescending && creationPhase === 'SELECTING' && (
-               <div className="absolute bottom-4 right-4 z-[80]">
-                   <button 
-                       onClick={() => {
-                          setCreationPhase('SELECTING');
-                          setCreatingParty([]);
-                          setGameState('CREATION');
-                          setIsDescending(false);
-                       }}
-                       className="text-[#661111] text-[10px] hover:text-red-500 font-bold"
-                   >
-                       [DEBUG: SKIP TO CREATION]
-                   </button>
-               </div>
-            )}
             <style dangerouslySetInnerHTML={{ __html: `
                 @keyframes fog-scroll {
                     0% { transform: translateX(-25%) translateY(-5%); }
@@ -1554,13 +1648,16 @@ const GameContent: React.FC = () => {
       )}
 
       {gameState === 'LORE' && <LoreCutscene onComplete={() => { 
-        const floors = generateDungeon();
+        const { floors, stairsDownLocations } = generateDungeon();
         setDungeonFloors(floors);
-        setCurrentFloor(0);
-        setCurrentPos({x: 1, y: 1});
+        setStairsDownLocations(stairsDownLocations);
+        setTownMap(generateTownMap());
+        setCurrentFloor(-1);
+        setCurrentPos({ x: 6, y: 3 }); // Adjusted Spawn point for new Town Map size
+        setCurrentDir(Direction.SOUTH);
         setExplored({});
         setGameState('EXPLORE');
-        addLog("The descent begins...", 'info');
+        addLog("You arrive at a lonely outpost, a grim haven.", 'info');
       }} />}
       
       {gameState === 'CREATION' && (
@@ -1576,8 +1673,8 @@ const GameContent: React.FC = () => {
                                         <img src={cls.avatar} className="w-full h-full object-contain pixelated" alt={cls.type} />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <div className="text-sm font-black text-emerald-300 uppercase leading-none mb-1">{cls.type}</div>
-                                        <div className="text-[9px] text-emerald-600/80 leading-tight">{cls.description.substring(0, 40)}...</div>
+                                        <div className="text-lg font-black text-emerald-300 uppercase leading-none mb-1">{cls.type}</div>
+                                        <div className="text-sm text-emerald-600/80 leading-tight">{cls.description.substring(0, 40)}...</div>
                                     </div>
                                     <div className="text-xl text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity font-bold px-2">+</div>
                                 </button>
@@ -1590,8 +1687,8 @@ const GameContent: React.FC = () => {
                             {creatingParty.length === 0 && (
                                 <div className="w-full h-full flex flex-col items-center justify-center text-emerald-900/40 border-4 border-dashed border-emerald-900/20 bg-emerald-950/5 animate-pulse">
                                     <div className="text-6xl mb-4 opacity-30">⚰️</div>
-                                    <div className="text-xl font-black uppercase tracking-widest">ROSTER EMPTY</div>
-                                    <div className="text-sm mt-2">Initializing Soul Transfer...</div>
+                                    <div className="text-2xl font-black uppercase tracking-widest">ROSTER EMPTY</div>
+                                    <div className="text-base mt-2">Initializing Soul Transfer...</div>
                                 </div>
                             )}
                             {creatingParty.map((cls, i) => (
@@ -1605,9 +1702,9 @@ const GameContent: React.FC = () => {
                         </div>
                         <div className="mt-auto pt-4 border-t border-emerald-900 shrink-0">
                             {creationPhase === 'CONFIRMING' ? (
-                                <button onClick={handleConfirmParty} className="w-full py-4 text-xl font-black bg-emerald-600 text-black border-2 border-emerald-400 hover:bg-emerald-500 hover:scale-[1.02] transition-all shadow-[0_0_20px_rgba(16,185,129,0.4)]">BEGIN DESCENT</button>
+                                <button onClick={handleConfirmParty} className="w-full py-4 text-2xl font-black bg-emerald-600 text-black border-2 border-emerald-400 hover:bg-emerald-500 hover:scale-[1.02] transition-all shadow-[0_0_20px_rgba(16,185,129,0.4)]">BEGIN DESCENT</button>
                             ) : (
-                                <div className="w-full py-4 text-center text-emerald-800 font-bold border-2 border-dashed border-emerald-900 bg-emerald-950/10 cursor-not-allowed">SELECT {3 - creatingParty.length} MORE HEROES</div>
+                                <div className="w-full py-4 text-center text-emerald-800 font-bold border-2 border-dashed border-emerald-900 bg-emerald-950/10 cursor-not-allowed text-lg">SELECT {3 - creatingParty.length} MORE HEROES</div>
                             )}
                         </div>
                     </div>
@@ -1620,7 +1717,22 @@ const GameContent: React.FC = () => {
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
           <div className="flex-1 flex flex-col min-w-0 relative border-r border-emerald-900">
             <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
-                <DungeonRenderer pos={currentPos} dir={currentDir} floor={currentFloor} merchantSprite={merchantSprite} mapData={dungeonFloors[currentFloor]} />
+                <DungeonRenderer 
+                    pos={currentPos} 
+                    dir={currentDir} 
+                    floor={currentFloor} 
+                    merchantSprite={MERCHANT_AVATAR} 
+                    fountainSprite={TEXTURE_FOUNTAIN}
+                    villagerSprite={AVATAR_VILLAGER}
+                    ghostSprite={AVATAR_GHOST}
+                    mapData={currentMap} 
+                    wallBrickTexture={TEXTURE_WALL_BRICK}
+                    wallStoneTexture={TEXTURE_WALL_STONE}
+                    wallMetalTexture={TEXTURE_WALL_METAL}
+                    wallCityTexture={TEXTURE_WALL_CITY}
+                    doorTexture={TEXTURE_DOOR}
+                    stairsUpSprite={SPRITE_STAIRS_UP}
+                />
             </div>
             <div className="h-48 hidden md:flex min-h-0 border-t border-emerald-900 shrink-0">
                  {renderLogs(logEndRefDesktop)}
@@ -1629,7 +1741,7 @@ const GameContent: React.FC = () => {
           <div className="w-full md:w-96 flex-none flex flex-col md:bg-black/90 md:h-full">
             <div className="p-3 md:p-4 border-b border-emerald-900 flex flex-col gap-4">
                  <div className="flex justify-center relative">
-                    <Minimap pos={currentPos} dir={currentDir} floor={currentFloor} explored={explored[currentFloor] || new Set()} mapData={dungeonFloors[currentFloor]} />
+                    <Minimap pos={currentPos} dir={currentDir} floor={currentFloor} explored={explored[currentFloor] || new Set()} mapData={currentMap} />
                     <button 
                         onClick={() => setIsMapExpanded(true)}
                         className="absolute bottom-2 right-2 bg-emerald-900/80 border border-emerald-500 text-emerald-300 w-6 h-6 flex items-center justify-center hover:bg-emerald-700 text-xs font-bold rounded-sm z-20"
@@ -1657,7 +1769,7 @@ const GameContent: React.FC = () => {
                     <div 
                         key={p.id} 
                         onClick={() => isSelectedForAction && executeQuickAction(i)}
-                        className={`text-xs md:text-sm border p-2 flex gap-3 items-start transition-all cursor-pointer relative
+                        className={`text-sm md:text-base border p-2 flex gap-3 items-start transition-all cursor-pointer relative
                             ${p.hp <= 0 ? 'border-red-900 bg-red-950/20 opacity-50' : 'border-emerald-900 md:bg-emerald-950/10'}
                             ${isSelectedForAction ? 'hover:bg-emerald-500/20 hover:border-emerald-400 animate-pulse' : ''}
                         `}
@@ -1665,14 +1777,14 @@ const GameContent: React.FC = () => {
                         <img src={p.avatar} alt={p.class} className="w-10 h-10 md:w-12 md:h-12 border border-emerald-800 bg-black object-contain pixelated hidden md:block shrink-0" />
                         <div className="flex-1 min-w-0 flex flex-col gap-1">
                           <div className="flex justify-between items-center">
-                              <div className={`font-black uppercase ${p.hp <= 0 ? 'text-red-500' : 'text-white'} truncate text-sm md:text-base`}>{p.class}</div>
-                              <div className="text-[10px] md:text-xs font-bold text-emerald-400 border border-emerald-900/50 px-1 bg-black/40">LV {p.level}</div>
+                              <div className={`font-black uppercase ${p.hp <= 0 ? 'text-red-500' : 'text-white'} truncate text-base md:text-lg`}>{p.class}</div>
+                              <div className="text-xs md:text-sm font-bold text-emerald-400 border border-emerald-900/50 px-1 bg-black/40">LV {p.level}</div>
                           </div>
                           
                           {/* HP Bar */}
                           <div className="w-full bg-red-950/50 h-3 border border-red-900/30 relative">
                               <div className="absolute inset-0 bg-red-600 transition-all duration-300" style={{ width: `${(p.hp / stats.maxHp) * 100}%` }} />
-                              <div className="absolute inset-0 flex items-center justify-center text-[8px] md:text-[9px] font-bold text-white drop-shadow-md z-10 leading-none">
+                              <div className="absolute inset-0 flex items-center justify-center text-[10px] md:text-xs font-bold text-white drop-shadow-md z-10 leading-none">
                                   HP {p.hp}/{stats.maxHp}
                               </div>
                           </div>
@@ -1680,7 +1792,7 @@ const GameContent: React.FC = () => {
                           {/* MP Bar */}
                           <div className="w-full bg-blue-950/50 h-3 border border-blue-900/30 relative">
                               <div className="absolute inset-0 bg-blue-500 transition-all duration-300" style={{ width: `${(p.mp / stats.maxMp) * 100}%` }} />
-                              <div className="absolute inset-0 flex items-center justify-center text-[8px] md:text-[9px] font-bold text-white drop-shadow-md z-10 leading-none">
+                              <div className="absolute inset-0 flex items-center justify-center text-[10px] md:text-xs font-bold text-white drop-shadow-md z-10 leading-none">
                                   MP {p.mp}/{stats.maxMp}
                               </div>
                           </div>
@@ -1696,32 +1808,32 @@ const GameContent: React.FC = () => {
             </div>
 
             <div className="p-2 flex gap-2 border-t border-emerald-900 mt-auto md:mt-0 bg-black">
-                <button onClick={() => setGameState('INVENTORY')} className="flex-1 retro-button py-2 text-[8px] md:text-sm border-emerald-400 bg-emerald-950/40">🎒 BAG</button>
-                <button onClick={() => setGameState('SKILLS')} className="flex-1 retro-button py-2 text-[8px] md:text-sm border-cyan-400 bg-cyan-950/40">✨ SKILLS</button>
+                <button onClick={() => setGameState('INVENTORY')} className="flex-1 retro-button py-2 text-xs md:text-base border-emerald-400 bg-emerald-950/40">🎒 BAG</button>
+                <button onClick={() => setGameState('SKILLS')} className="flex-1 retro-button py-2 text-xs md:text-base border-cyan-400 bg-cyan-950/40">✨ SKILLS</button>
             </div>
 
             <div className="flex-1 border-t border-emerald-900 bg-black/40 overflow-hidden flex flex-col p-2 min-h-[150px]">
                 {quickActionTargeting ? (
                     <div className="flex-1 flex flex-col items-center justify-center animate-in zoom-in duration-200">
-                        <div className="text-emerald-400 font-bold uppercase tracking-widest mb-2 text-center text-xs">
+                        <div className="text-emerald-400 font-bold uppercase tracking-widest mb-2 text-center text-sm">
                             Select Target for<br/>
-                            <span className="text-white text-sm">{quickActionTargeting.item?.name || quickActionTargeting.skill?.name}</span>
+                            <span className="text-white text-base">{quickActionTargeting.item?.name || quickActionTargeting.skill?.name}</span>
                         </div>
-                        <button onClick={() => setQuickActionTargeting(null)} className="retro-button px-4 py-1 text-xs border-red-500 text-red-500">CANCEL</button>
+                        <button onClick={() => setQuickActionTargeting(null)} className="retro-button px-4 py-1 text-sm border-red-500 text-red-500">CANCEL</button>
                     </div>
                 ) : (
                     <>
-                        <div className="text-[10px] uppercase font-bold text-emerald-700 tracking-wider mb-2 text-center border-b border-emerald-900/30 pb-1">Quick Cast</div>
+                        <div className="text-xs uppercase font-bold text-emerald-700 tracking-wider mb-2 text-center border-b border-emerald-900/30 pb-1">Quick Cast</div>
                         <div className="overflow-y-auto custom-scrollbar flex-1">
                             {sharedInventory.some(i => i.type === 'consumable') && (
                                 <div className="mb-3">
-                                    <div className="text-[9px] text-emerald-600 font-bold mb-1 pl-1">CONSUMABLES</div>
+                                    <div className="text-[11px] text-emerald-600 font-bold mb-1 pl-1">CONSUMABLES</div>
                                     <div className="grid grid-cols-2 gap-1">
                                         {Array.from(new Set(sharedInventory.filter(i => i.type === 'consumable').map(i => i.id))).map(id => {
                                             const item = sharedInventory.find(i => i.id === id)!;
                                             const count = sharedInventory.filter(i => i.id === id).length;
                                             return (
-                                                <button key={id} onClick={() => handleQuickAction({type: 'item', item})} className="text-[9px] border border-emerald-900/50 bg-emerald-950/20 hover:bg-emerald-900/40 p-1 flex justify-between items-center text-left">
+                                                <button key={id} onClick={() => handleQuickAction({type: 'item', item})} className="text-[11px] border border-emerald-900/50 bg-emerald-950/20 hover:bg-emerald-900/40 p-1 flex justify-between items-center text-left">
                                                     <span className="truncate flex-1 text-emerald-400">{item.name}</span>
                                                     <span className="text-white font-bold ml-1">x{count}</span>
                                                 </button>
@@ -1730,21 +1842,21 @@ const GameContent: React.FC = () => {
                                     </div>
                                 </div>
                             )}
-                            <div className="text-[9px] text-cyan-600 font-bold mb-1 pl-1">SUPPORT SPELLS</div>
+                            <div className="text-[11px] text-cyan-600 font-bold mb-1 pl-1">SUPPORT SPELLS</div>
                             <div className="grid grid-cols-1 gap-1">
                                 {party.map((p, pIdx) => {
                                     const usable = getUsableSkills(p);
                                     if (usable.length === 0) return null;
                                     return (
                                         <div key={p.id} className="flex gap-1 items-center bg-black/20 p-1 border border-cyan-900/20">
-                                            <div className="w-4 h-4 bg-cyan-900 text-[8px] flex items-center justify-center text-white font-bold">{p.class.substring(0,1)}</div>
+                                            <div className="w-4 h-4 bg-cyan-900 text-[10px] flex items-center justify-center text-white font-bold">{p.class.substring(0,1)}</div>
                                             <div className="flex-1 flex flex-wrap gap-1">
                                                 {usable.map(s => (
                                                     <button 
                                                         key={s.id} 
                                                         disabled={p.mp < s.cost}
                                                         onClick={() => handleQuickAction({type: 'skill', skill: s, sourceIndex: pIdx})}
-                                                        className={`text-[8px] px-1.5 py-0.5 border ${p.mp >= s.cost ? 'border-cyan-700 text-cyan-300 hover:bg-cyan-900/40' : 'border-gray-800 text-gray-600 cursor-not-allowed'}`}
+                                                        className={`text-[11px] px-1.5 py-0.5 border ${p.mp >= s.cost ? 'border-cyan-700 text-cyan-300 hover:bg-cyan-900/40' : 'border-gray-800 text-gray-600 cursor-not-allowed'}`}
                                                     >
                                                         {s.name} <span className="opacity-50">({s.cost})</span>
                                                     </button>
@@ -1808,7 +1920,7 @@ const GameContent: React.FC = () => {
                 merchantInventory={merchantInventory}
                 playerInventory={sharedInventory}
                 gold={gold}
-                merchantSprite={merchantSprite}
+                merchantSprite={MERCHANT_AVATAR}
                 onBuy={handleBuy}
                 onSell={handleSell}
                 onClose={() => setGameState('EXPLORE')}
@@ -1822,7 +1934,7 @@ const GameContent: React.FC = () => {
         <div className="absolute inset-0 z-40 w-full h-full">
             <BattleScreen 
             party={party} 
-            enemies={activeEnemies} 
+            enemies={activeEnemies}
             inventory={sharedInventory}
             activeCharIndex={activeCharIndex}
             targetIndex={targetIndex}
@@ -1834,7 +1946,6 @@ const GameContent: React.FC = () => {
             impactIds={impactIds}
             currentAnim={currentAnim}
             floatingTexts={floatingTexts}
-            skeletonSprite={skeletonSprite}
             onAttack={handleAttack} 
             onUseItem={handleCombatUseItem}
             onSkill={handleSkill}

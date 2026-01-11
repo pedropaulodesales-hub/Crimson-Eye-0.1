@@ -17,12 +17,13 @@ const CharacterCard: React.FC<CharacterCardProps> = ({ player, stats }) => {
         const base64Content = player.avatar.split(',')[1];
         const rawSvg = atob(base64Content);
         
-        let targetColor = '#ffffff'; // Default eye color (Mage, Barbarian, Archer)
+        let targetColor = '#ffffff'; // Default eye color (Barbarian, Archer)
         
-        // Define specific eye colors for classes that differ from default white
-        if (player.class === 'WARRIOR') targetColor = '#33ff33'; // Green Visor
-        if (player.class === 'ROGUE') targetColor = '#ff0000';   // Red eyes
-        if (player.class === 'CLERIC') targetColor = '#66ff66';  // Light Green Holy eyes
+        // Define specific eye colors for classes
+        if (player.class === 'WARRIOR') targetColor = '#33ff33';
+        if (player.class === 'ROGUE') targetColor = '#ff0000';
+        if (player.class === 'CLERIC') targetColor = '#66ff66';
+        if (player.class === 'MAGE') targetColor = '#33ff33';
 
         // Define the blink animation styles
         const styleBlock = `
@@ -84,10 +85,10 @@ const CharacterCard: React.FC<CharacterCardProps> = ({ player, stats }) => {
 
       {/* Header */}
       <div className="border-b border-emerald-900/40 p-2 bg-gradient-to-r from-emerald-950/40 to-black flex justify-between items-center z-20">
-        <span className="text-emerald-400 font-black tracking-[0.2em] text-sm md:text-lg uppercase text-shadow-sm">
+        <span className="text-emerald-400 font-black tracking-[0.2em] text-lg md:text-xl uppercase text-shadow-sm">
           {player.class || 'ADVENTURER'}
         </span>
-        <span className="text-emerald-700 font-bold bg-black/40 border border-emerald-900/30 px-2 py-0.5 text-[9px] rounded-sm">LVL {player.level || 1}</span>
+        <span className="text-emerald-700 font-bold bg-black/40 border border-emerald-900/30 px-2 py-0.5 text-xs rounded-sm">LVL {player.level || 1}</span>
       </div>
 
       {/* Sprite Container */}
@@ -144,20 +145,20 @@ const CharacterCard: React.FC<CharacterCardProps> = ({ player, stats }) => {
         {/* Derived Stats Compact Grid */}
         <div className="grid grid-cols-2 gap-px bg-emerald-900/30 border border-emerald-900/30">
             <div className="bg-black/80 px-2 py-1 flex justify-between items-center">
-                <span className="text-[9px] text-emerald-700 font-bold">HP</span>
-                <span className="text-green-400 font-black text-xs">{stats.maxHp}</span>
+                <span className="text-xs text-emerald-700 font-bold">HP</span>
+                <span className="text-green-400 font-black text-sm">{stats.maxHp}</span>
             </div>
             <div className="bg-black/80 px-2 py-1 flex justify-between items-center">
-                <span className="text-[9px] text-emerald-700 font-bold">MP</span>
-                <span className="text-blue-400 font-black text-xs">{stats.maxMp}</span>
+                <span className="text-xs text-emerald-700 font-bold">MP</span>
+                <span className="text-blue-400 font-black text-sm">{stats.maxMp}</span>
             </div>
             <div className="bg-black/80 px-2 py-1 flex justify-between items-center">
-                <span className="text-[9px] text-emerald-700 font-bold">ATK</span>
-                <span className="text-emerald-400 font-bold text-[10px]">{stats.atk}</span>
+                <span className="text-xs text-emerald-700 font-bold">ATK</span>
+                <span className="text-emerald-400 font-bold text-sm">{stats.atk}</span>
             </div>
              <div className="bg-black/80 px-2 py-1 flex justify-between items-center">
-                <span className="text-[9px] text-emerald-700 font-bold">DEF</span>
-                <span className="text-emerald-400 font-bold text-[10px]">{stats.def}</span>
+                <span className="text-xs text-emerald-700 font-bold">DEF</span>
+                <span className="text-emerald-400 font-bold text-sm">{stats.def}</span>
             </div>
         </div>
       </div>
@@ -167,8 +168,8 @@ const CharacterCard: React.FC<CharacterCardProps> = ({ player, stats }) => {
 
 const StatRow: React.FC<{ label: string, value: number, color: string }> = ({ label, value, color }) => (
   <div className="flex justify-between items-center px-2 py-0.5 border-l-2 border-emerald-900/30 bg-emerald-950/10">
-    <span className="text-[9px] text-emerald-600/80 font-bold tracking-widest">{label}</span>
-    <span className={`${color} font-black text-xs`}>{value}</span>
+    <span className="text-xs text-emerald-600/80 font-bold tracking-widest">{label}</span>
+    <span className={`${color} font-black text-base`}>{value}</span>
   </div>
 );
 

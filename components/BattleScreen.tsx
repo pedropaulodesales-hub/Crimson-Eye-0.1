@@ -47,6 +47,7 @@ const getAnimatedAvatar = (avatar: string, identifier: string) => {
         
         let targetColor = '#ffffff'; 
         if (identifier === 'WARRIOR') targetColor = '#33ff33';
+        if (identifier === 'MAGE') targetColor = '#33ff33';
         if (identifier === 'ROGUE') targetColor = '#ff0000';
         if (identifier === 'CLERIC') targetColor = '#66ff66';
         if (identifier.includes('Bat') || identifier.includes('Hound') || identifier.includes('Mimic')) targetColor = '#ff0000';
@@ -214,13 +215,13 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
      return (
          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
              {texts.map(ft => {
-                 let colorClass = "text-white text-3xl md:text-5xl"; // Base large size
-                 if (ft.type === 'damage') colorClass = "text-red-500 font-bold text-shadow-red text-3xl md:text-5xl";
-                 else if (ft.type === 'heal') colorClass = "text-green-400 font-bold text-3xl md:text-5xl";
-                 else if (ft.type === 'miss') colorClass = "text-gray-400 font-bold text-2xl md:text-4xl";
-                 else if (ft.type === 'crit') colorClass = "text-orange-500 font-black text-5xl md:text-7xl text-shadow-orange";
-                 else if (ft.type === 'block') colorClass = "text-blue-300 font-bold text-2xl md:text-4xl";
-                 else if (ft.type === 'loot') colorClass = "text-yellow-400 font-bold text-2xl md:text-4xl";
+                 let colorClass = "text-white text-4xl md:text-6xl"; // Base large size
+                 if (ft.type === 'damage') colorClass = "text-red-500 font-bold text-shadow-red text-4xl md:text-6xl";
+                 else if (ft.type === 'heal') colorClass = "text-green-400 font-bold text-4xl md:text-6xl";
+                 else if (ft.type === 'miss') colorClass = "text-gray-400 font-bold text-3xl md:text-5xl";
+                 else if (ft.type === 'crit') colorClass = "text-orange-500 font-black text-6xl md:text-8xl text-shadow-orange";
+                 else if (ft.type === 'block') colorClass = "text-blue-300 font-bold text-3xl md:text-5xl";
+                 else if (ft.type === 'loot') colorClass = "text-yellow-400 font-bold text-3xl md:text-5xl";
                  
                  return <div key={ft.key} className={`absolute ${colorClass} animate-float-up drop-shadow-md`}>{ft.text}</div>;
              })}
@@ -235,7 +236,7 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
               {buffs.map((b, i) => {
                   const isDebuff = b.type === 'debuff';
                   const color = isDebuff ? 'bg-red-900/90 border-red-500 text-red-100' : 'bg-emerald-900/90 border-emerald-500 text-emerald-100';
-                  return <div key={i} className={`flex items-center gap-0.5 px-1 py-px rounded border text-[6px] md:text-[8px] font-bold shadow-sm ${color}`} title={b.name}><span>{isDebuff ? '💀' : '🛡️'}</span><span>{b.name.substring(0, 3)}</span></div>;
+                  return <div key={i} className={`flex items-center gap-0.5 px-1 py-px rounded border text-[8px] md:text-[10px] font-bold shadow-sm ${color}`} title={b.name}><span>{isDebuff ? '💀' : '🛡️'}</span><span>{b.name.substring(0, 3)}</span></div>;
               })}
           </div>
       );
@@ -276,7 +277,7 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
       if (!activeChar || actingId) {
           return (
             <div className="w-full h-full flex flex-col items-center justify-center text-emerald-800 animate-pulse border-2 border-dashed border-emerald-900/30">
-               <div className="text-sm font-bold tracking-widest uppercase">Awaiting Turn Signal</div>
+               <div className="text-base font-bold tracking-widest uppercase">Awaiting Turn Signal</div>
                <div className="w-1/2 h-1 bg-emerald-900/30 mt-2 overflow-hidden rounded-full"><div className="h-full bg-emerald-500/50 w-1/3 animate-[shimmer_1s_infinite_linear]" /></div>
             </div>
           );
@@ -290,18 +291,18 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
               <div className="w-full h-full flex flex-col border-2 border-blue-500 bg-blue-950/20 p-2 animate-pulse relative overflow-hidden">
                   <div className="absolute inset-0 bg-blue-500/5 animate-[pulse_0.5s_infinite]" />
                   <div className="relative z-10 flex flex-col h-full">
-                      <div className="text-center font-black text-blue-300 uppercase tracking-widest text-lg mb-1 drop-shadow-md">SELECT TARGET</div>
+                      <div className="text-center font-black text-blue-300 uppercase tracking-widest text-xl mb-1 drop-shadow-md">SELECT TARGET</div>
                       
                       <div className="bg-black/50 border border-blue-800 p-2 mb-2 text-center">
-                          <div className="text-[10px] text-blue-400 uppercase font-bold">{selectedItem ? 'USING ITEM' : 'CASTING'}</div>
-                          <div className="text-white font-black text-sm uppercase">{name}</div>
+                          <div className="text-xs text-blue-400 uppercase font-bold">{selectedItem ? 'USING ITEM' : 'CASTING'}</div>
+                          <div className="text-white font-black text-base uppercase">{name}</div>
                       </div>
 
-                      <div className="text-center text-xs text-white font-bold bg-blue-900/40 p-1 rounded mb-4">
+                      <div className="text-center text-sm text-white font-bold bg-blue-900/40 p-1 rounded mb-4">
                           {isEnemyTarget ? '>>> CHOOSE ENEMY <<<' : '>>> CHOOSE ALLY <<<'}
                       </div>
                       <div className="mt-auto">
-                          <button onClick={() => setMenuState(selectedItem ? 'ITEMS' : 'SKILLS')} className="w-full py-3 border-2 border-red-500 bg-red-950/40 text-red-300 hover:bg-red-900 hover:text-white text-sm font-black uppercase tracking-wider transition-colors">CANCEL</button>
+                          <button onClick={() => setMenuState(selectedItem ? 'ITEMS' : 'SKILLS')} className="w-full py-3 border-2 border-red-500 bg-red-950/40 text-red-300 hover:bg-red-900 hover:text-white text-base font-black uppercase tracking-wider transition-colors">CANCEL</button>
                       </div>
                   </div>
               </div>
@@ -323,10 +324,10 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
           return (
               <div className="w-full h-full flex flex-col border-2 border-emerald-900 bg-black relative">
                   <div className="flex justify-between items-center bg-emerald-950/50 p-2 border-b border-emerald-800 shrink-0">
-                      <button onClick={() => setMenuState('MAIN')} className="text-xs font-black text-red-500 hover:text-white uppercase flex items-center gap-1">
+                      <button onClick={() => setMenuState('MAIN')} className="text-sm font-black text-red-500 hover:text-white uppercase flex items-center gap-1">
                           <span>◀</span> BACK
                       </button>
-                      <span className="text-[9px] text-emerald-500 font-bold uppercase tracking-wider">SUPPLIES</span>
+                      <span className="text-[11px] text-emerald-500 font-bold uppercase tracking-wider">SUPPLIES</span>
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-1 space-y-1">
                       {consumables.length > 0 ? consumables.map(({item, count}) => (
@@ -336,16 +337,16 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
                             className="w-full flex justify-between items-center p-2 border border-emerald-900/50 bg-emerald-950/20 hover:bg-emerald-900/40 transition-all text-left"
                           >
                               <div className="flex items-center gap-2">
-                                  <span className="text-lg">🧪</span>
+                                  <span className="text-xl">🧪</span>
                                   <div className="flex flex-col">
-                                      <span className="text-xs font-bold text-emerald-300 uppercase">{item.name}</span>
-                                      <span className="text-[8px] text-emerald-600">{item.description}</span>
+                                      <span className="text-sm font-bold text-emerald-300 uppercase">{item.name}</span>
+                                      <span className="text-[10px] text-emerald-600">{item.description}</span>
                                   </div>
                               </div>
-                              <span className="font-mono font-bold text-white text-sm">x{count}</span>
+                              <span className="font-mono font-bold text-white text-base">x{count}</span>
                           </button>
                       )) : (
-                          <div className="text-center text-emerald-900 py-4 uppercase font-bold text-xs">No Consumables</div>
+                          <div className="text-center text-emerald-900 py-4 uppercase font-bold text-sm">No Consumables</div>
                       )}
                   </div>
               </div>
@@ -360,12 +361,12 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
               <div className="w-full h-full flex flex-col border-2 border-cyan-900 bg-black relative">
                   {/* Header */}
                   <div className="flex justify-between items-center bg-cyan-950/50 p-2 border-b border-cyan-800 shrink-0">
-                      <button onClick={() => setMenuState('MAIN')} className="text-xs font-black text-red-500 hover:text-white uppercase flex items-center gap-1">
+                      <button onClick={() => setMenuState('MAIN')} className="text-sm font-black text-red-500 hover:text-white uppercase flex items-center gap-1">
                           <span>◀</span> BACK
                       </button>
                       <div className="flex flex-col items-end">
-                          <span className="text-[9px] text-cyan-700 font-bold uppercase tracking-wider">MANA</span>
-                          <span className="text-sm font-bold text-blue-300 leading-none">{activeChar.mp} MP</span>
+                          <span className="text-[11px] text-cyan-700 font-bold uppercase tracking-wider">MANA</span>
+                          <span className="text-base font-bold text-blue-300 leading-none">{activeChar.mp} MP</span>
                       </div>
                   </div>
 
@@ -389,12 +390,12 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
                                 `}
                               >
                                   <div className="flex items-center gap-2">
-                                      <div className={`w-5 h-5 flex items-center justify-center rounded-sm text-[10px] ${skill.type === 'attack' ? 'bg-red-900/50 text-red-200' : skill.type === 'heal' ? 'bg-green-900/50 text-green-200' : 'bg-yellow-900/50 text-yellow-200'}`}>
+                                      <div className={`w-6 h-6 flex items-center justify-center rounded-sm text-xs ${skill.type === 'attack' ? 'bg-red-900/50 text-red-200' : skill.type === 'heal' ? 'bg-green-900/50 text-green-200' : 'bg-yellow-900/50 text-yellow-200'}`}>
                                           {skill.type === 'attack' ? '⚔️' : skill.type === 'heal' ? '✚' : '✨'}
                                       </div>
-                                      <span className={`font-bold text-xs uppercase ${canAfford ? 'text-cyan-100' : 'text-gray-500'}`}>{skill.name}</span>
+                                      <span className={`font-bold text-sm uppercase ${canAfford ? 'text-cyan-100' : 'text-gray-500'}`}>{skill.name}</span>
                                   </div>
-                                  <div className={`px-1.5 py-0.5 text-[9px] font-mono font-bold rounded ${canAfford ? 'bg-blue-950/50 text-blue-300 border border-blue-900' : 'text-red-900'}`}>
+                                  <div className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded ${canAfford ? 'bg-blue-950/50 text-blue-300 border border-blue-900' : 'text-red-900'}`}>
                                       {skill.cost} MP
                                   </div>
                               </button>
@@ -403,37 +404,37 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
                   </div>
 
                   {/* Detail Pane (Fixed at Bottom, High Readability) */}
-                  <div className="h-28 shrink-0 bg-cyan-950/20 border-t-2 border-cyan-800 p-2 flex flex-col gap-2">
+                  <div className="h-32 shrink-0 bg-cyan-950/20 border-t-2 border-cyan-800 p-2 flex flex-col gap-2">
                       {displaySkill && skillInfo ? (
                           <>
                             <div className="flex-1">
-                                <div className="text-[10px] text-cyan-300 font-bold uppercase mb-1 flex justify-between">
+                                <div className="text-xs text-cyan-300 font-bold uppercase mb-1 flex justify-between">
                                     <span>{displaySkill.name}</span>
                                     <span className="opacity-50">{displaySkill.targetType}</span>
                                 </div>
-                                <p className="text-[9px] text-cyan-500/90 leading-tight italic h-8 overflow-hidden">
+                                <p className="text-[11px] text-cyan-500/90 leading-tight italic h-10 overflow-hidden">
                                     {displaySkill.desc}
                                 </p>
                             </div>
                             
                             {/* Stats Grid */}
-                            <div className="grid grid-cols-2 gap-2 h-10">
+                            <div className="grid grid-cols-2 gap-2 h-12">
                                 <div className={`flex flex-col items-center justify-center border border-dashed border-opacity-30 bg-black/40 ${skillInfo.color.replace('text-', 'border-')}`}>
-                                    <span className="text-[8px] uppercase opacity-70 font-bold">{skillInfo.label}</span>
-                                    <span className={`text-lg font-black ${skillInfo.color}`}>
+                                    <span className="text-[10px] uppercase opacity-70 font-bold">{skillInfo.label}</span>
+                                    <span className={`text-xl font-black ${skillInfo.color}`}>
                                         {skillInfo.label === 'BUFF' ? 'EFFECT' : `~${skillInfo.val}`}
                                     </span>
                                 </div>
                                 <div className="flex flex-col items-center justify-center border border-dashed border-blue-500/30 bg-black/40">
-                                    <span className="text-[8px] uppercase text-blue-400/70 font-bold">COST</span>
-                                    <span className={`text-lg font-black ${activeChar.mp >= displaySkill.cost ? 'text-blue-300' : 'text-red-500'}`}>
+                                    <span className="text-[10px] uppercase text-blue-400/70 font-bold">COST</span>
+                                    <span className={`text-xl font-black ${activeChar.mp >= displaySkill.cost ? 'text-blue-300' : 'text-red-500'}`}>
                                         {displaySkill.cost}
                                     </span>
                                 </div>
                             </div>
                           </>
                       ) : (
-                          <div className="h-full flex items-center justify-center text-[10px] text-cyan-900 uppercase tracking-widest">
+                          <div className="h-full flex items-center justify-center text-xs text-cyan-900 uppercase tracking-widest">
                               Select Ability
                           </div>
                       )}
@@ -447,10 +448,10 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
           <div className="w-full h-full flex flex-col p-1 gap-1">
               <div className="flex items-center justify-between mb-1 px-1 bg-emerald-950/30 border border-emerald-900/50 rounded py-1">
                   <div className="flex items-center gap-2">
-                      <span className="text-xs font-black text-white uppercase bg-emerald-800 px-2 py-0.5 rounded-sm shadow-sm">{activeChar.class}</span>
-                      <span className="text-[10px] font-mono text-emerald-500 animate-pulse">COMMAND_READY</span>
+                      <span className="text-sm font-black text-white uppercase bg-emerald-800 px-2 py-0.5 rounded-sm shadow-sm">{activeChar.class}</span>
+                      <span className="text-xs font-mono text-emerald-500 animate-pulse">COMMAND_READY</span>
                   </div>
-                  <span className="text-[9px] text-emerald-700">ACT_ID: {activeChar.id.split('_')[2]}</span>
+                  <span className="text-[11px] text-emerald-700">ACT_ID: {activeChar.id.split('_')[2]}</span>
               </div>
               
               <div className="flex-1 grid grid-cols-2 gap-2">
@@ -458,32 +459,32 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
                     onClick={onAttack} 
                     className="retro-button border-red-600 text-red-500 hover:bg-red-600 hover:text-white flex flex-col items-center justify-center gap-1 transition-all active:scale-95 group"
                   >
-                      <span className="text-2xl group-hover:scale-110 transition-transform">⚔️</span>
-                      <span className="text-xs md:text-sm tracking-widest">ATTACK</span>
+                      <span className="text-3xl group-hover:scale-110 transition-transform">⚔️</span>
+                      <span className="text-sm md:text-base tracking-widest">ATTACK</span>
                   </button>
                   
                   <button 
                     onClick={() => setMenuState('SKILLS')} 
                     className="retro-button border-cyan-500 text-cyan-400 hover:bg-cyan-500 hover:text-black flex flex-col items-center justify-center gap-1 transition-all active:scale-95 group"
                   >
-                      <span className="text-2xl group-hover:scale-110 transition-transform">⚡</span>
-                      <span className="text-xs md:text-sm tracking-widest">SKILL</span>
+                      <span className="text-3xl group-hover:scale-110 transition-transform">⚡</span>
+                      <span className="text-sm md:text-base tracking-widest">SKILL</span>
                   </button>
                   
                   <button 
                     onClick={() => setMenuState('ITEMS')} 
                     className="retro-button border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-black flex flex-col items-center justify-center gap-1 transition-all active:scale-95 group"
                   >
-                      <span className="text-2xl group-hover:scale-110 transition-transform">🧪</span>
-                      <span className="text-xs md:text-sm tracking-widest">ITEM</span>
+                      <span className="text-3xl group-hover:scale-110 transition-transform">🧪</span>
+                      <span className="text-sm md:text-base tracking-widest">ITEM</span>
                   </button>
                   
                   <button 
                     onClick={onRun} 
                     className="retro-button border-gray-500 text-gray-400 hover:bg-gray-600 hover:text-white flex flex-col items-center justify-center gap-1 transition-all active:scale-95 group"
                   >
-                      <span className="text-2xl group-hover:scale-110 transition-transform">🏃</span>
-                      <span className="text-xs md:text-sm tracking-widest">RUN</span>
+                      <span className="text-3xl group-hover:scale-110 transition-transform">🏃</span>
+                      <span className="text-sm md:text-base tracking-widest">RUN</span>
                   </button>
               </div>
           </div>
@@ -564,7 +565,7 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
                            </div>
                         </div>
                         
-                        <div className="mt-1 text-[10px] font-bold text-red-400 bg-black/60 px-2 rounded backdrop-blur-sm">
+                        <div className="mt-1 text-xs font-bold text-red-400 bg-black/60 px-2 rounded backdrop-blur-sm">
                            {enemy.name}
                         </div>
                         <div className="mt-0.5">{renderBuffs(enemy.buffs)}</div>
@@ -606,8 +607,8 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
                        >
                           {/* Top Info */}
                           <div className="absolute top-1 left-1 z-20 pointer-events-none flex flex-col items-start gap-0.5">
-                             <div className={`font-black text-[10px] md:text-xl uppercase tracking-wider bg-black/60 px-1 md:px-2 border-l-4 ${isActive ? 'border-emerald-400 text-white' : 'border-emerald-900 text-emerald-500'}`}>{p.class}</div>
-                             <div className="text-[8px] md:text-sm text-emerald-700 font-bold bg-black/60 px-1">LV {p.level}</div>
+                             <div className={`font-black text-xs md:text-2xl uppercase tracking-wider bg-black/60 px-1 md:px-2 border-l-4 ${isActive ? 'border-emerald-400 text-white' : 'border-emerald-900 text-emerald-500'}`}>{p.class}</div>
+                             <div className="text-[10px] md:text-base text-emerald-700 font-bold bg-black/60 px-1">LV {p.level}</div>
                           </div>
 
                           {/* Avatar */}
@@ -629,11 +630,11 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
                           <div className="bg-[#0a0a0a] border-t-2 border-emerald-900/30 relative z-20 flex flex-col w-full">
                              <div className="w-full bg-red-950 h-4 md:h-6 relative border-b border-black/50">
                                 <div className="absolute inset-0 bg-red-600 transition-all duration-300" style={{ width: `${(p.hp / stats.maxHp) * 100}%` }} />
-                                <div className="absolute inset-0 flex items-center justify-center text-[8px] md:text-xs font-black text-white drop-shadow-md tracking-wider z-10">{p.hp}/{stats.maxHp}</div>
+                                <div className="absolute inset-0 flex items-center justify-center text-[10px] md:text-sm font-black text-white drop-shadow-md tracking-wider z-10">{p.hp}/{stats.maxHp}</div>
                              </div>
                              <div className="w-full bg-blue-950 h-4 md:h-6 relative">
                                 <div className="absolute inset-0 bg-blue-500 transition-all duration-300" style={{ width: `${(p.mp / stats.maxMp) * 100}%` }} />
-                                <div className="absolute inset-0 flex items-center justify-center text-[8px] md:text-xs font-black text-white drop-shadow-md tracking-wider z-10">{p.mp}/{stats.maxMp}</div>
+                                <div className="absolute inset-0 flex items-center justify-center text-[10px] md:text-sm font-black text-white drop-shadow-md tracking-wider z-10">{p.mp}/{stats.maxMp}</div>
                              </div>
                           </div>
                        </div>
@@ -648,7 +649,7 @@ const BattleScreen: React.FC<BattleScreenProps> = ({
            </div>
 
            {/* Log View (Compact) */}
-           <div className="mt-2 h-20 shrink-0 overflow-y-auto custom-scrollbar border-t-2 border-emerald-900 pt-2 bg-black text-[9px] md:text-xs font-mono opacity-80">
+           <div className="mt-2 h-20 shrink-0 overflow-y-auto custom-scrollbar border-t-2 border-emerald-900 pt-2 bg-black text-[11px] md:text-sm font-mono opacity-80">
               {logs.slice(-10).reverse().map((log, i) => (
                  <div key={i} className={`mb-0.5 ${log.type === 'damage' ? 'text-red-400' : log.type === 'heal' ? 'text-green-400' : 'text-emerald-500'}`}>
                     {'>'} {log.text}

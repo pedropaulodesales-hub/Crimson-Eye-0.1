@@ -337,7 +337,7 @@ export class SoundManager {
     playLonelyNote();
   }
 
-  playEffect(type: 'move' | 'turn' | 'attack' | 'magic' | 'hit' | 'loot' | 'stairs' | 'victory' | 'death' | 'crit' | 'miss' | 'heal' | 'skill' | 'encounter' | 'type' | 'secret' | 'menu_select' | 'descent' | 'heartbeat_thump' | 'seal' | 'eye_blink' | 'eye_glow') {
+  playEffect(type: 'move' | 'turn' | 'attack' | 'magic' | 'hit' | 'loot' | 'stairs' | 'victory' | 'death' | 'crit' | 'miss' | 'heal' | 'skill' | 'encounter' | 'type' | 'secret' | 'menu_select' | 'descent' | 'heartbeat_thump' | 'seal' | 'eye_blink' | 'eye_glow' | 'door_open') {
     if (!this.ctx || !this.masterGain) return;
     if (this.ctx.state === 'suspended') this.ctx.resume();
     
@@ -358,6 +358,25 @@ export class SoundManager {
         osc.start(t);
         osc.stop(t + 0.1);
         break;
+      case 'door_open':
+        // Whoosh noise for door
+        const noise = this.createNoiseSource();
+        const noiseFilter = this.ctx.createBiquadFilter();
+        noiseFilter.type = 'bandpass';
+        noiseFilter.Q.value = 3;
+        noiseFilter.frequency.setValueAtTime(1500, t);
+        noiseFilter.frequency.exponentialRampToValueAtTime(300, t + 0.3);
+
+        const noiseGain = this.ctx.createGain();
+        noiseGain.gain.setValueAtTime(0.2, t);
+        noiseGain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+        
+        noise.connect(noiseFilter);
+        noiseFilter.connect(noiseGain);
+        noiseGain.connect(this.masterGain);
+        noise.start(t);
+        noise.stop(t + 0.3);
+        return;
       case 'secret':
         // A magical shimmering sound
         osc.type = 'sine';
@@ -699,22 +718,22 @@ export class SoundManager {
         fallOsc.stop(t + 1.5);
 
         // Whoosh noise
-        const noise = this.createNoiseSource();
-        const noiseFilter = this.ctx.createBiquadFilter();
-        noiseFilter.type = 'bandpass';
-        noiseFilter.Q.value = 5;
-        noiseFilter.frequency.setValueAtTime(2000, t);
-        noiseFilter.frequency.exponentialRampToValueAtTime(100, t + 1);
+        const noiseWhoosh = this.createNoiseSource();
+        const noiseFilterWhoosh = this.ctx.createBiquadFilter();
+        noiseFilterWhoosh.type = 'bandpass';
+        noiseFilterWhoosh.Q.value = 5;
+        noiseFilterWhoosh.frequency.setValueAtTime(2000, t);
+        noiseFilterWhoosh.frequency.exponentialRampToValueAtTime(100, t + 1);
 
-        const noiseGain = this.ctx.createGain();
-        noiseGain.gain.setValueAtTime(0.2, t);
-        noiseGain.gain.exponentialRampToValueAtTime(0.01, t + 1.2);
+        const noiseGainWhoosh = this.ctx.createGain();
+        noiseGainWhoosh.gain.setValueAtTime(0.2, t);
+        noiseGainWhoosh.gain.exponentialRampToValueAtTime(0.01, t + 1.2);
         
-        noise.connect(noiseFilter);
-        noiseFilter.connect(noiseGain);
-        noiseGain.connect(this.masterGain);
-        noise.start(t);
-        noise.stop(t + 1.2);
+        noiseWhoosh.connect(noiseFilterWhoosh);
+        noiseFilterWhoosh.connect(noiseGainWhoosh);
+        noiseGainWhoosh.connect(this.masterGain);
+        noiseWhoosh.start(t);
+        noiseWhoosh.stop(t + 1.2);
 
         // Impact
         const impactOsc = this.ctx.createOscillator();

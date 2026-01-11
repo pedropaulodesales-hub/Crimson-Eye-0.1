@@ -67,7 +67,7 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({
 
   const renderItemCard = (item: Item | null, title: string) => {
     if (!item) return (
-       <div className="border-2 border-dashed border-emerald-900/30 bg-black/40 h-full flex items-center justify-center text-emerald-900 uppercase font-bold tracking-widest text-xs">
+       <div className="border-2 border-dashed border-emerald-900/30 bg-black/40 h-full flex items-center justify-center text-emerald-900 uppercase font-bold tracking-widest text-sm">
            {title}: Empty
        </div>
     );
@@ -77,33 +77,33 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({
         <div className={`h-full border-2 flex flex-col p-3 relative overflow-hidden ${item.rarity ? RARITY_COLORS[item.rarity].split(' ')[0] : 'border-emerald-900'} ${item.rarity ? RARITY_BG[item.rarity] : 'bg-black/60'}`}>
             <div className="flex justify-between items-start mb-2 relative z-10">
                <div>
-                  <div className="text-[10px] uppercase font-bold opacity-70 tracking-wider mb-1">{title}</div>
-                  <div className={`font-black uppercase text-sm md:text-lg leading-tight ${item.rarity ? RARITY_COLORS[item.rarity].split(' ')[1] : 'text-emerald-400'}`}>{item.name}</div>
+                  <div className="text-xs uppercase font-bold opacity-70 tracking-wider mb-1">{title}</div>
+                  <div className={`font-black uppercase text-base md:text-xl leading-tight ${item.rarity ? RARITY_COLORS[item.rarity].split(' ')[1] : 'text-emerald-400'}`}>{item.name}</div>
                </div>
-               {cp > 0 && <div className="text-amber-500 font-black text-xs border border-amber-900/50 px-1 bg-black/60">CP {cp}</div>}
+               {cp > 0 && <div className="text-amber-500 font-black text-sm border border-amber-900/50 px-1 bg-black/60">CP {cp}</div>}
             </div>
             
             <div className="flex-1 space-y-2 relative z-10">
-                 <div className="flex justify-between items-center text-sm">
+                 <div className="flex justify-between items-center text-base">
                     <span className="text-emerald-700 font-bold">TYPE</span>
                     <span className="text-emerald-400 font-bold uppercase">{item.type}</span>
                  </div>
                  {(item.stat || 0) > 0 && (
-                     <div className="flex justify-between items-center text-sm border-b border-white/10 pb-1">
+                     <div className="flex justify-between items-center text-base border-b border-white/10 pb-1">
                         <span className="text-emerald-600 font-bold">BASE PWR</span>
-                        <span className="text-white font-black text-lg">+{item.stat}</span>
+                        <span className="text-white font-black text-xl">+{item.stat}</span>
                      </div>
                  )}
                  {(item.magicStat || 0) > 0 && (
-                     <div className="flex justify-between items-center text-sm border-b border-white/10 pb-1">
+                     <div className="flex justify-between items-center text-base border-b border-white/10 pb-1">
                         <span className="text-emerald-600 font-bold">MAGIC PWR</span>
-                        <span className="text-cyan-300 font-black text-lg">+{item.magicStat}</span>
+                        <span className="text-cyan-300 font-black text-xl">+{item.magicStat}</span>
                      </div>
                  )}
                  {item.mods && item.mods.length > 0 && (
                      <div className="mt-2">
                         {item.mods.map((m, i) => (
-                            <div key={i} className="flex justify-between text-xs py-0.5">
+                            <div key={i} className="flex justify-between text-sm py-0.5">
                                 <span className="text-emerald-500/80 uppercase">{m.stat}</span>
                                 <span className="text-cyan-400 font-bold">+{m.value}</span>
                             </div>
@@ -112,7 +112,7 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({
                  )}
             </div>
             
-            <div className="text-[10px] italic text-emerald-600/60 mt-2 border-t border-white/5 pt-2 relative z-10">
+            <div className="text-xs italic text-emerald-600/60 mt-2 border-t border-white/5 pt-2 relative z-10">
                 "{item.description}"
             </div>
         </div>
@@ -148,12 +148,12 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({
           )}
           <div>
               <h2 className="text-2xl md:text-4xl font-black tracking-[0.2em] uppercase text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]">MERCHANT</h2>
-              <div className="text-emerald-700 text-xs tracking-widest uppercase font-bold">Secure Trading Node v9.0</div>
+              <div className="text-emerald-700 text-sm tracking-widest uppercase font-bold">Secure Trading Node v9.0</div>
           </div>
         </div>
         <div className="flex flex-col items-end">
-            <div className="text-yellow-500 font-black text-xl md:text-3xl tracking-widest text-shadow-glow">{gold} G</div>
-            <button onClick={onClose} className="mt-2 retro-button px-4 py-2 text-xs md:text-sm border-red-900 text-red-500 hover:bg-red-950/50">CLOSE CONNECTION</button>
+            <div className="text-yellow-500 font-black text-2xl md:text-4xl tracking-widest text-shadow-glow">{gold} G</div>
+            <button onClick={onClose} className="mt-2 retro-button px-4 py-2 text-sm md:text-base border-red-900 text-red-500 hover:bg-red-950/50">CLOSE CONNECTION</button>
         </div>
       </div>
 
@@ -166,13 +166,13 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({
               <div className="flex border-b-2 border-emerald-900">
                 <button 
                   onClick={() => { setActiveTab('BUY'); setSelectedItem(null); }}
-                  className={`flex-1 py-3 text-sm md:text-base font-black transition-all uppercase tracking-wider ${activeTab === 'BUY' ? 'bg-emerald-600 text-black' : 'bg-black text-emerald-800 hover:bg-emerald-900/20'}`}
+                  className={`flex-1 py-3 text-base md:text-lg font-black transition-all uppercase tracking-wider ${activeTab === 'BUY' ? 'bg-emerald-600 text-black' : 'bg-black text-emerald-800 hover:bg-emerald-900/20'}`}
                 >
                   ACQUIRE
                 </button>
                 <button 
                   onClick={() => { setActiveTab('SELL'); setSelectedItem(null); }}
-                  className={`flex-1 py-3 text-sm md:text-base font-black transition-all uppercase tracking-wider ${activeTab === 'SELL' ? 'bg-cyan-600 text-black' : 'bg-black text-cyan-800 hover:bg-cyan-900/20'}`}
+                  className={`flex-1 py-3 text-base md:text-lg font-black transition-all uppercase tracking-wider ${activeTab === 'SELL' ? 'bg-cyan-600 text-black' : 'bg-black text-cyan-800 hover:bg-cyan-900/20'}`}
                 >
                   LIQUIDATE
                 </button>
@@ -195,21 +195,21 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({
                                 {/* Icon / CP Box */}
                                 <div className={`w-12 h-12 md:w-14 md:h-14 shrink-0 border-2 flex flex-col items-center justify-center ${item.rarity ? RARITY_BG[item.rarity] : 'bg-emerald-950/30'} ${item.rarity ? RARITY_COLORS[item.rarity].split(' ')[0] : 'border-emerald-800'}`}>
                                     <span className="text-xl md:text-2xl">{item.type === 'weapon' ? '⚔️' : item.type === 'consumable' ? '🧪' : item.type === 'material' ? '📦' : '🛡️'}</span>
-                                    {cp > 0 && <span className="text-[9px] font-black mt-1 text-amber-500">{cp}</span>}
+                                    {cp > 0 && <span className="text-[11px] font-black mt-1 text-amber-500">{cp}</span>}
                                 </div>
 
                                 {/* Details */}
                                 <div className="flex-1 min-w-0">
                                     <div className="flex justify-between items-center">
-                                        <span className={`font-bold text-sm md:text-lg truncate ${selectedItem === item ? 'text-white' : (item.rarity ? RARITY_COLORS[item.rarity].split(' ')[1] : 'text-emerald-400')}`}>
+                                        <span className={`font-bold text-base md:text-xl truncate ${selectedItem === item ? 'text-white' : (item.rarity ? RARITY_COLORS[item.rarity].split(' ')[1] : 'text-emerald-400')}`}>
                                             {item.name}
                                         </span>
-                                        <span className="text-yellow-500 font-black text-sm md:text-base whitespace-nowrap">
+                                        <span className="text-yellow-500 font-black text-base md:text-lg whitespace-nowrap">
                                             {activeTab === 'BUY' ? item.value : Math.floor(item.value * 0.5)} G
                                         </span>
                                     </div>
                                     <div className="flex justify-between items-center mt-1">
-                                        <div className="text-[10px] md:text-xs uppercase font-bold text-emerald-700 flex gap-2">
+                                        <div className="text-xs md:text-sm uppercase font-bold text-emerald-700 flex gap-2">
                                             <span>{item.type}</span>
                                             <span className="text-emerald-900">|</span>
                                             <span className={`${item.rarity ? RARITY_COLORS[item.rarity].split(' ')[1] : 'text-emerald-600'}`}>{item.rarity || 'COMMON'}</span>
@@ -252,14 +252,14 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({
                         className={`flex-1 border-2 p-1 flex items-center justify-center gap-2 transition-all ${selectedCharIndex === i ? 'bg-emerald-600 border-emerald-400' : 'bg-black border-emerald-900 opacity-60 hover:opacity-100'}`}
                       >
                          <img src={p.avatar} className="w-8 h-8 md:w-10 md:h-10 bg-black object-contain pixelated" alt={p.class} />
-                         <span className={`text-xs font-black uppercase hidden md:inline ${selectedCharIndex === i ? 'text-white' : 'text-emerald-700'}`}>{p.class}</span>
+                         <span className={`text-sm font-black uppercase hidden md:inline ${selectedCharIndex === i ? 'text-white' : 'text-emerald-700'}`}>{p.class}</span>
                       </button>
                   ))}
               </div>
 
               {selectedItem ? (
                  <div className="flex-1 flex flex-col min-h-0 animate-in fade-in slide-in-from-right duration-300">
-                    <div className="text-center font-bold text-emerald-800 text-xs uppercase tracking-[0.3em] mb-2 border-b border-emerald-900/50 pb-1">
+                    <div className="text-center font-bold text-emerald-800 text-sm uppercase tracking-[0.3em] mb-2 border-b border-emerald-900/50 pb-1">
                         Equipment Comparison Analysis
                     </div>
 
@@ -267,7 +267,7 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({
                     <div className="flex-1 grid grid-cols-2 gap-4 min-h-0 mb-4">
                         {/* Current Item */}
                         <div className="flex flex-col h-full min-h-0">
-                            <div className="text-center text-[10px] uppercase font-bold text-red-400 mb-1 tracking-wider">Currently Equipped</div>
+                            <div className="text-center text-xs uppercase font-bold text-red-400 mb-1 tracking-wider">Currently Equipped</div>
                             <div className="flex-1 min-h-0">
                                 {renderItemCard(currentEquipped, "OLD")}
                             </div>
@@ -275,13 +275,13 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({
 
                         {/* New Item */}
                         <div className="flex flex-col h-full min-h-0">
-                            <div className="text-center text-[10px] uppercase font-bold text-green-400 mb-1 tracking-wider">Selected Item</div>
+                            <div className="text-center text-xs uppercase font-bold text-green-400 mb-1 tracking-wider">Selected Item</div>
                             <div className="flex-1 min-h-0 relative">
                                 {renderItemCard(selectedItem, "NEW")}
                                 
                                 {/* Difference Badge */}
                                 {(selectedItem.type !== 'consumable' && selectedItem.type !== 'material') && (
-                                    <div className={`absolute -top-3 right-2 px-2 py-1 text-xs font-black border-2 shadow-lg z-20 ${cpDiff > 0 ? 'bg-green-600 text-white border-green-400' : cpDiff < 0 ? 'bg-red-600 text-white border-red-400' : 'bg-gray-600 text-white border-gray-400'}`}>
+                                    <div className={`absolute -top-3 right-2 px-2 py-1 text-sm font-black border-2 shadow-lg z-20 ${cpDiff > 0 ? 'bg-green-600 text-white border-green-400' : cpDiff < 0 ? 'bg-red-600 text-white border-red-400' : 'bg-gray-600 text-white border-gray-400'}`}>
                                         {cpDiff > 0 ? `+${cpDiff} CP` : `${cpDiff} CP`}
                                     </div>
                                 )}
@@ -292,8 +292,8 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({
                     {/* Action Button Area */}
                     <div className="shrink-0 mt-auto">
                          <div className="flex justify-between items-end mb-2 px-2">
-                             <div className="text-xs uppercase font-bold text-emerald-700">Transaction Value</div>
-                             <div className={`text-2xl font-black ${activeTab === 'BUY' && gold < selectedItem.value ? 'text-red-500' : 'text-yellow-500'}`}>
+                             <div className="text-sm uppercase font-bold text-emerald-700">Transaction Value</div>
+                             <div className={`text-3xl font-black ${activeTab === 'BUY' && gold < selectedItem.value ? 'text-red-500' : 'text-yellow-500'}`}>
                                  {activeTab === 'BUY' ? selectedItem.value : Math.floor(selectedItem.value * 0.5)} G
                              </div>
                          </div>
@@ -304,7 +304,7 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({
                                 setSelectedItem(null);
                             }}
                             disabled={activeTab === 'BUY' && gold < selectedItem.value}
-                            className={`w-full py-4 text-lg md:text-xl font-black border-2 transition-all uppercase tracking-widest shadow-[0_0_20px_rgba(0,0,0,0.5)] ${
+                            className={`w-full py-4 text-xl md:text-2xl font-black border-2 transition-all uppercase tracking-widest shadow-[0_0_20px_rgba(0,0,0,0.5)] ${
                                 activeTab === 'BUY' 
                                 ? (gold >= selectedItem.value ? 'bg-emerald-600 text-white border-emerald-400 hover:bg-emerald-500 hover:scale-[1.02]' : 'bg-red-950/40 text-red-700 border-red-900 opacity-50 cursor-not-allowed')
                                 : 'bg-yellow-600 text-black border-yellow-400 hover:bg-yellow-500 hover:scale-[1.02]'
@@ -319,7 +319,7 @@ const MerchantScreen: React.FC<MerchantScreenProps> = ({
                   <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-emerald-900/30 bg-black/20 text-center p-8 opacity-50 animate-pulse">
                       <div className="text-6xl mb-4">⚖️</div>
                       <div className="text-xl font-black uppercase tracking-widest mb-2">Awaiting Selection</div>
-                      <div className="text-sm">Select an item from the list to analyze specifications.</div>
+                      <div className="text-base">Select an item from the list to analyze specifications.</div>
                   </div>
               )}
           </div>
